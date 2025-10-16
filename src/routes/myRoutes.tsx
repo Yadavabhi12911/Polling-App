@@ -4,6 +4,7 @@ import SignUp from "@/pages/SingUp";
 import Polling from "@/components/Polling";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminRoute from "@/routes/AdminRoute";
+import PollResult from "@/pages/PollResult";
 
 export const myRoutes = createBrowserRouter([
   {
@@ -27,6 +28,14 @@ export const myRoutes = createBrowserRouter([
     element: (
       <AdminRoute>
         <AdminDashboard />
+      </AdminRoute>
+    ),
+  },
+  {
+    path: "/admin/poll-result",
+    element: (
+      <AdminRoute>
+      <PollResult/>
       </AdminRoute>
     ),
   },

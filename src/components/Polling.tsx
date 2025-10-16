@@ -37,10 +37,18 @@ const Polling = () => {
   useEffect(() => {
     const setup = async () => {
       await fetchUserAndVotes()
-      await fetchPolls();
+      
     };
     setup();
   }, []);
+
+  useEffect( () => {
+     const fetchPollsData = async () => {
+        await fetchPolls();
+      }
+
+      fetchPollsData()
+  },[])
 
   // Fetch current logged-in user ID and vote
   const fetchUserAndVotes = async () => {
@@ -57,11 +65,15 @@ const Polling = () => {
     return;
   }
   setUserId(user.id);
+  
+  
 
   const { data: votes, error: votesError } = await supabase
     .from('responses')
     .select('poll_id')
     .eq('user_id', user.id);
+
+  
 
   if (votesError) {
     setError("Failed to fetch user votes");
@@ -69,13 +81,17 @@ const Polling = () => {
   }
 
   const votedMap: { [pollId: string]: boolean } = {};
+
   votes?.forEach((vote) => {
     if (vote.poll_id) votedMap[vote.poll_id] = true;
   });
   setVotedPolls(votedMap);
 };
 
-  
+ 
+
+
+
 
   // Fetch polls and determine if user already voted
   const fetchPolls = async () => {
@@ -109,16 +125,19 @@ const Polling = () => {
             .eq('poll_id', poll.id);
 
           // Count votes
-          const voteCounts = { '1': 0, '2': 0, '3': 0, '4': 0 };
-          let userHasVoted = false;
+          type OptionKey = '1' | '2' | '3' | '4';
+          const voteCounts: Record<OptionKey, number> = { '1': 0, '2': 0, '3': 0, '4': 0 };
+          // let userHasVoted = false;
           responses?.forEach((response) => {
             if (response.selected_option in voteCounts) {
-              voteCounts[response.selected_option]++;
-              if (userId && response.user_id === userId) userHasVoted = true;
+
+              voteCounts[response.selected_option as OptionKey]++;
+
+              // if (userId && response.user_id === userId) userHasVoted = true;
             }
           });
 
-          setVotedPolls((prev) => ({ ...prev, [poll.id]: userHasVoted }));
+          // setVotedPolls((prev) => ({ ...prev, [poll.id]: userHasVoted }));
 
           const options: PollOption[] = [
             { id: '1', text: poll.option1, votes: voteCounts['1'] },
@@ -221,7 +240,7 @@ const Polling = () => {
     );
   }
 
-  console.log("poll data ---> ", polls);
+  
   
 
   return (
@@ -281,6 +300,7 @@ const Polling = () => {
                       disabled={!selectedOptions[poll.id] || voting[poll.id] || votedPolls[poll.id]}  
                       className="w-full"
                     >
+                    
                       {votedPolls[poll.id] ? 'Already Voted' : voting[poll.id] ? 'Submitting...' : 'Submit Vote'}
                     </Button>
                   </div>

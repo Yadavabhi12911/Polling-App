@@ -192,10 +192,10 @@ const AdminDashboard: React.FC = () => {
 
     try {
       let imageUrl = form.image_url;
-      console.log("imge  url --> ", imageUrl);
+      
 
       let fileUrl = form.file_url;
-      console.log("file  url --> ", fileUrl);
+      
 
       if (fileType === "image" && filePreview) {
         const response = await fetch(filePreview);
@@ -226,9 +226,11 @@ const AdminDashboard: React.FC = () => {
             upsert: false,
           });
         if (uploadDocErr) throw uploadDocErr;
-        fileUrl = supabase.storage
-          .from("poll-files")
-          .getPublicUrl(path).publicUrl;
+        
+        const { data : publicData } = supabase.storage.from("poll-files").getPublicUrl(path)
+
+        fileUrl = publicData.publicUrl
+
       }
 
       const insertData = {
@@ -290,21 +292,31 @@ const AdminDashboard: React.FC = () => {
     setSelectedFile(null);
   };
 
-  const handleDownload = async (url: string) => {
-    try {
-      const a = document.createElement("a");
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.download = "";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to start download");
-    }
-  };
+const handleDownload = async (url: string, filename?: string) => {
+  try {
+    // Fetch the file data as a blob
+    const response = await fetch(url);
+    const blob = await response.blob();
+
+    // Create a temporary blob URL
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    // Create an anchor and trigger download
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename || "download"; // default name if not provided
+    document.body.appendChild(a);
+    a.click();
+
+    // Clean up
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to start download");
+  }
+};
+
 
   const deletePoll = async (pollId: number) => {
     if (!confirm("Delete this poll?")) return;
@@ -457,13 +469,13 @@ const AdminDashboard: React.FC = () => {
                         className="mt-2 max-w-xs max-h-48 object-contain rounded"
                       />
                     )}
-                    {p.file_url && (
+                    { (p.file_url || p.image_url) && (
                       <p className="mt-2 text-sm">
                         Attached file:{" "}
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDownload(p.file_url!)}
+                          onClick={() => handleDownload(p.file_url! || p.image_url!)}
                         >
                           Download
                         </Button>
