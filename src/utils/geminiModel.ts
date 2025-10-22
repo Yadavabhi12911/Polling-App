@@ -1,4 +1,3 @@
-
 import { supabase } from "../../supabaseClient"
 
 import { GoogleGenAI, Type } from "@google/genai";
@@ -46,6 +45,27 @@ const createPollFunctionDecleration = {
   },
 }
 
+const updatePollFunctionDeclaration = {
+  name: "updatePoll",
+  description: "update an existing poll's fields (question/options/is_active)",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      poll_id: { type: Type.STRING, description: "ID of the poll to update (preferred)" },
+      question_match: { type: Type.STRING, description: "Poll question text to find the poll when id not provided" },
+      question: { type: Type.STRING, description: "New question text (optional)" },
+      option1: { type: Type.STRING, description: "Updated option 1 (optional)" },
+      option2: { type: Type.STRING, description: "Updated option 2 (optional)" },
+      option3: { type: Type.STRING, description: "Updated option 3 (optional)" },
+      option4: { type: Type.STRING, description: "Updated option 4 (optional)" },
+      is_active: { type: Type.BOOLEAN, description: "Set to false to close poll (optional)" },
+    },
+    required: [],
+  },
+};
+
+
+
 const getPollResultFunctionDeclaration = {
   name: "getPollResult",
   description: "get poll results for all active polls",
@@ -74,7 +94,10 @@ Ask one question at a time in this order:
 After collecting all, call the "createPoll" function with all data.
 Do not call the function early.
 
-You can also help users view poll results by calling the "getPollResult" function when they ask about poll results, statistics, or want to see how polls are performing.`,
+You can also help users:
+- View poll results: call "getPollResult" when they ask for results/statistics.
+- Update a poll (question/options/close): call "updatePoll". Prefer using an explicit poll ID; otherwise use an exact question match. If ambiguous, ask a clarifying question.
+- Delete/close a poll: call "deletePoll" (this should set is_active=false). Prefer using an explicit poll ID; otherwise use an exact question match. If ambiguous, ask a clarifying question.`,
       },
     ],
   },
@@ -124,7 +147,12 @@ export async function chatWithPollBot(userMessage: string, fileInfo?: {
     config: {
       tools: [
         {
-          functionDeclarations: [createPollFunctionDecleration, getPollResultFunctionDeclaration]
+          functionDeclarations: [
+            createPollFunctionDecleration,
+            getPollResultFunctionDeclaration,
+            updatePollFunctionDeclaration,
+           
+          ]
         }
       ]
     }
@@ -271,7 +299,51 @@ export async function chatWithPollBot(userMessage: string, fileInfo?: {
         console.error("Error fetching poll results:", error);
         return { type: "text", message: "Failed to fetch poll results. Please try again." };
       }
-    }
+    } else if (functionName === "updatePoll") {
+      try {
+        // Find target poll
+        let targetId = args?.poll_id as string | undefined;
+        if (!targetId && args?.question_match) {
+          const { data: candidates, error } = await supabase
+            .from("polls")
+            .select("id, question, created_at")
+            .ilike("question", args.question_match);
+          if (error) throw error;
+          if (!candidates || candidates.length === 0) {
+            return { type: "text", message: "No poll found matching that question." };
+          }
+          if (candidates.length > 1) {
+            return { type: "text", message: "Multiple polls match. Please specify the poll ID." };
+          }
+          targetId = candidates[0].id;
+        }
+
+        if (!targetId) {
+          return { type: "text", message: "Please provide a poll ID or exact question to update." };
+        }
+
+        const updateData: Record<string, any> = {};
+        ["question", "option1", "option2", "option3", "option4", "is_active"].forEach((key) => {
+          if (args && args[key] !== undefined) updateData[key] = args[key];
+        });
+
+        if (Object.keys(updateData).length === 0) {
+          return { type: "text", message: "No fields to update were provided." };
+        }
+
+        const { data, error } = await supabase
+          .from("polls")
+          .update(updateData)
+          .eq("id", targetId)
+          .select("*")
+          .single();
+        if (error) throw error;
+        return { type: "text", message: `Poll updated successfully (id: ${data.id}).` };
+      } catch (error) {
+        console.error("Error updating poll:", error);
+        return { type: "text", message: "Failed to update poll. Please try again." };
+      }
+    } 
 
     return { type: "text", message: "Unknown function call." };
   } else {
@@ -279,6 +351,8 @@ export async function chatWithPollBot(userMessage: string, fileInfo?: {
     return { type: "text", message: response.candidates?.[0]?.content?.parts?.[0]?.text };
   }
 }
+
+
 
 
 
