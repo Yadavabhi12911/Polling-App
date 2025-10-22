@@ -1,3 +1,4 @@
+
 import { supabase } from "../../supabaseClient"
 
 import { GoogleGenAI, Type } from "@google/genai";
@@ -64,7 +65,18 @@ const updatePollFunctionDeclaration = {
   },
 };
 
-
+const deletePollFunctionDeclaration = {
+  name: "deletePoll",
+  description: "soft-delete a poll by setting is_active to false",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      poll_id: { type: Type.STRING, description: "ID of the poll to delete (preferred)" },
+      question_match: { type: Type.STRING, description: "Poll question text to find the poll when id not provided" },
+    },
+    required: [],
+  },
+};
 
 const getPollResultFunctionDeclaration = {
   name: "getPollResult",
@@ -151,7 +163,7 @@ export async function chatWithPollBot(userMessage: string, fileInfo?: {
             createPollFunctionDecleration,
             getPollResultFunctionDeclaration,
             updatePollFunctionDeclaration,
-           
+            deletePollFunctionDeclaration,
           ]
         }
       ]
@@ -343,7 +355,41 @@ export async function chatWithPollBot(userMessage: string, fileInfo?: {
         console.error("Error updating poll:", error);
         return { type: "text", message: "Failed to update poll. Please try again." };
       }
-    } 
+    } else if (functionName === "deletePoll") {
+      try {
+        let targetId = args?.poll_id as string | undefined;
+        if (!targetId && args?.question_match) {
+          const { data: candidates, error } = await supabase
+            .from("polls")
+            .select("id, question, created_at")
+            .ilike("question", args.question_match);
+          if (error) throw error;
+          if (!candidates || candidates.length === 0) {
+            return { type: "text", message: "No poll found matching that question." };
+          }
+          if (candidates.length > 1) {
+            return { type: "text", message: "Multiple polls match. Please specify the poll ID." };
+          }
+          targetId = candidates[0].id;
+        }
+
+        if (!targetId) {
+          return { type: "text", message: "Please provide a poll ID or exact question to delete." };
+        }
+
+        const { data, error } = await supabase
+          .from("polls")
+          .update({ is_active: false })
+          .eq("id", targetId)
+          .select("id")
+          .single();
+        if (error) throw error;
+        return { type: "text", message: `Poll closed successfully (id: ${data.id}).` };
+      } catch (error) {
+        console.error("Error deleting poll:", error);
+        return { type: "text", message: "Failed to delete poll. Please try again." };
+      }
+    }
 
     return { type: "text", message: "Unknown function call." };
   } else {
@@ -351,8 +397,6 @@ export async function chatWithPollBot(userMessage: string, fileInfo?: {
     return { type: "text", message: response.candidates?.[0]?.content?.parts?.[0]?.text };
   }
 }
-
-
 
 
 
