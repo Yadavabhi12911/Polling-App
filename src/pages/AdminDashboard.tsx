@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { MessageSquare, Bot } from "lucide-react";
 
 import mammoth from "mammoth";
 
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
-import pdfjsWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min?url";
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,6 +92,11 @@ const AdminDashboard: React.FC = () => {
   const handleResultViewClick = () => {
     navigate("/admin/poll-result");
   };
+
+  const handleChatBotClick = () => {
+    navigate("/admin/chat-bot");
+  };
+
 
   // Try to extract a date-like string from text to use as description
   const extractDateFromText = (text: string): string => {
@@ -338,6 +344,8 @@ const handleDownload = async (url: string, filename?: string) => {
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8">
+
+  
       <Card>
         <CardHeader>
           <CardTitle>{isEdit ? "Edit Poll" : "Create Poll"}</CardTitle>
@@ -444,6 +452,20 @@ const handleDownload = async (url: string, filename?: string) => {
          
          <Button onClick={handleResultViewClick}>View All Poll Result</Button>
 
+ <div className="fixed bottom-6 right-18 ">
+  <Button
+    variant="outline"
+    size="icon"
+    className="h-20 w-20 rounded-full shadow-xl hover:scale-105 transition-transform flex flex-col"
+    onClick={handleChatBotClick}
+  >
+    
+    <Bot className="h-20 w-20 text-primary" />
+   <span>ChatBot</span>
+  </Button>
+</div>
+
+
       <Card>
         <CardHeader>
           <CardTitle>All Polls</CardTitle>
@@ -513,6 +535,8 @@ const handleDownload = async (url: string, filename?: string) => {
           )}
         </CardContent>
       </Card>
+      
+  
     </div>
   );
 };
