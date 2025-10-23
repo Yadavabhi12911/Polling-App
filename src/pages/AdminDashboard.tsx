@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import mammoth from "mammoth";
 
@@ -83,6 +84,12 @@ const AdminDashboard: React.FC = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+   const navigate = useNavigate();
+
+  const handleResultViewClick = () => {
+    navigate("/admin/poll-result");
   };
 
   // Try to extract a date-like string from text to use as description
@@ -434,6 +441,8 @@ const handleDownload = async (url: string, filename?: string) => {
           </form>
         </CardContent>
       </Card>
+         
+         <Button onClick={handleResultViewClick}>View All Poll Result</Button>
 
       <Card>
         <CardHeader>
