@@ -105,6 +105,7 @@ const PollResult = () => {
             0
           );
 
+      
           return {
             id: poll.id,
             question: poll.question,
@@ -153,7 +154,9 @@ const PollResult = () => {
         <p className="text-center text-muted-foreground">
           View real-time results from all active polls
         </p>
+         <Button onClick={handlebotClick}>ChatBot </Button>
       </div>
+     
 
       {polls.length === 0 ? (
         <Card className="text-center py-12">

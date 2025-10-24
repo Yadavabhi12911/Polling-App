@@ -1,73 +1,118 @@
-# React + TypeScript + Vite
+# Polling App with AI Assistant
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern polling application built with React, TypeScript, Vite, and Supabase, featuring an AI-powered chatbot for poll creation and voting.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### For Regular Users
+- **View Active Polls**: Browse all currently active polls with real-time vote counts
+- **AI-Powered Voting**: Use the chatbot to vote on polls through natural language
+- **Poll Results**: See live results and statistics for all polls
+- **User-Friendly Interface**: Clean, intuitive design for easy navigation
 
-## React Compiler
+### For Admin Users
+- **Create Polls**: Use the AI assistant to create polls step-by-step
+- **Manage Polls**: Update, delete, or close existing polls
+- **View Analytics**: Access detailed poll results and statistics
+- **Admin Dashboard**: Comprehensive admin panel for poll management
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### AI Assistant Capabilities
+- **Poll Creation**: Guide users through creating polls with questions and options
+- **Voting Assistance**: Help users vote on polls using natural language
+- **Results Display**: Show poll results and statistics
+- **File Support**: Upload images, PDFs, or documents to enhance polls
+- **Role-Based Access**: Different capabilities based on user role (admin vs regular user)
 
-## Expanding the ESLint configuration
+## Technology Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Frontend**: React 18 + TypeScript + Vite
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **Backend**: Supabase (Database + Authentication)
+- **AI**: Google Gemini AI for chatbot functionality
+- **Charts**: Recharts for data visualization
+- **File Processing**: PDF.js, Mammoth.js for document handling
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Getting Started
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+2. **Environment Setup**
+   Create a `.env` file with:
+   ```
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   VITE_GEMINI_API_KEY=your_gemini_api_key
+   ```
+
+3. **Run Development Server**
+   ```bash
+   npm run dev
+   ```
+
+## User Roles
+
+### Regular Users
+- Access: `/app/user-polls` - View and vote on active polls
+- Features: View poll results, vote through AI assistant
+- Navigation: Simple interface focused on voting
+
+### Admin Users  
+- Access: `/app/polling` - Full poll management interface
+- Features: Create, update, delete polls; view detailed analytics
+- Navigation: Advanced admin dashboard
+
+## AI Assistant Usage
+
+### For Voting
+1. Navigate to `/app/chat-bot`
+2. Ask to see active polls: "Show me active polls"
+3. Vote on a poll: "I want to vote on poll [ID] for option [1-4]"
+4. The AI will process your vote and confirm submission
+
+### For Poll Creation (Admin)
+1. Navigate to `/app/chat-bot` as an admin
+2. Start creating: "I want to create a poll"
+3. Follow the AI's step-by-step guidance
+4. Upload files if needed (images, PDFs, documents)
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── ui/           # Reusable UI components
+│   ├── ChatBot.tsx   # AI assistant interface
+│   ├── Polling.tsx   # Admin poll management
+│   ├── Navigation.tsx # App navigation
+│   └── Layout.tsx    # Main layout wrapper
+├── pages/
+│   ├── UserPolling.tsx # User poll viewing interface
+│   ├── AdminDashboard.tsx
+│   └── ...
+├── utils/
+│   └── geminiModel.ts # AI integration logic
+└── routes/
+    └── myRoutes.tsx   # Application routing
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Key Features Implemented
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+✅ **User Poll Viewing**: Users can see all active polls with real-time results  
+✅ **AI Voting**: Users can vote through natural language with the chatbot  
+✅ **Role-Based Access**: Different interfaces for admin and regular users  
+✅ **Real-Time Updates**: Live poll results and vote counts  
+✅ **File Support**: Upload images and documents to enhance polls  
+✅ **Responsive Design**: Works on desktop and mobile devices  
+✅ **Navigation**: Easy navigation between different app sections  
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Recent Updates
+
+- Added user-specific polling interface (`/app/user-polls`)
+- Implemented AI-powered voting functionality
+- Created role-based navigation and access control
+- Enhanced chatbot with voting capabilities
+- Added real-time poll result display for users
+- Improved user experience with dedicated user interface

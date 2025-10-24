@@ -45,13 +45,13 @@ const SignIn = () => {
         .eq('id', userId)
         .single();
       if (profile?.role === 'admin') {
-        navigate('/admin');
+        navigate('/app/admin');
         return;
       }
     }
 
 
-    navigate('/polling');
+    navigate('/app/polling');
   };
 
   return (

@@ -345,7 +345,10 @@ const handleDownload = async (url: string, filename?: string) => {
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8">
 
-  
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-center mb-2">What poll tasks are on your agenda today?</h1>
+        <p className="text-center text-muted-foreground">Create, manage, and monitor polls for your organization</p>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>{isEdit ? "Edit Poll" : "Create Poll"}</CardTitle>

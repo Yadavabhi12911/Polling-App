@@ -6,6 +6,8 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminRoute from "@/routes/AdminRoute";
 import PollResult from "@/pages/PollResult";
 import ChatBot from "@/components/ChatBot";
+import UserPolling from "@/pages/UserPolling";
+import Layout from "@/components/Layout";
 
 export const myRoutes = createBrowserRouter([
   {
@@ -21,31 +23,37 @@ export const myRoutes = createBrowserRouter([
     element: <SignUp />,
   },
   {
-    path: "/polling",
-    element: <Polling/>,
-  },
-  {
-    path: "/admin",
-    element: (
-      <AdminRoute>
-        <AdminDashboard />
-      </AdminRoute>
-    ),
-  },
-  {
-    path: "/admin/poll-result",
-    element: (
-      <AdminRoute>
-      <PollResult/>
-      </AdminRoute>
-    ),
-  },
-  {
-    path: "/admin/chat-bot",
-    element: (
-      <AdminRoute>
-      <ChatBot/>
-      </AdminRoute>
-    ),
+    path: "/app",
+    element: <Layout />,
+    children: [
+      {
+        path: "polling",
+        element: <Polling/>,
+      },
+      {
+        path: "user-polls",
+        element: <UserPolling/>,
+      },
+      {
+        path: "admin",
+        element: (
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "admin/poll-result",
+        element: (
+          <AdminRoute>
+            <PollResult/>
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "chat-bot",
+        element: <ChatBot/>,
+      },
+    ],
   },
 ]);
