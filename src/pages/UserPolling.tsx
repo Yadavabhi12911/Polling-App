@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from './ui/chart';
-import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../components/ui/chart';
+import { Button } from '../components/ui/button';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { MessageSquare, Bot, Vote } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Bot } from "lucide-react";
-import { useUserRole } from './useUserRole';
-
 
 interface PollOption {
   id: string;
@@ -28,9 +26,7 @@ interface Poll {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-const Polling = () => {
-  const userRole = useUserRole();
-  const navigate = useNavigate();
+const UserPolling = () => {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,68 +34,57 @@ const Polling = () => {
   const [voting, setVoting] = useState<{ [pollId: string]: boolean }>({});
   const [votedPolls, setVotedPolls] = useState<{ [key: string]: boolean }>({});
   const [userId, setUserId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirect users to appropriate page based on role
-    if (userRole === "user") {
-      navigate("/app/user-polls");
+    const setup = async () => {
+      await fetchUserAndVotes();
+    };
+    setup();
+  }, []);
+
+  useEffect(() => {
+    const fetchPollsData = async () => {
+      await fetchPolls();
+    };
+    fetchPollsData();
+  }, []);
+
+  // Fetch current logged-in user ID and votes
+  const fetchUserAndVotes = async () => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    
+    if (userError) {
+      setError("Failed to fetch user info");
       return;
     }
     
-    const setup = async () => {
-      await fetchUserAndVotes()
-      
-    };
-    setup();
-  }, [userRole, navigate]);
+    if (!user) {
+      setError("User not logged in");
+      return;
+    }
+    
+    setUserId(user.id);
 
-  useEffect( () => {
-     const fetchPollsData = async () => {
-        await fetchPolls();
-      }
+    const { data: votes, error: votesError } = await supabase
+      .from('responses')
+      .select('poll_id')
+      .eq('user_id', user.id);
 
-      fetchPollsData()
-  },[])
+    if (votesError) {
+      setError("Failed to fetch user votes");
+      return;
+    }
 
-  // Fetch current logged-in user ID and vote
-  const fetchUserAndVotes = async () => {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError) {
-    setError("Failed to fetch user info");
-    return;
-  }
-  if (!user) {
-    setError("User not logged in");
-    return;
-  }
-  setUserId(user.id);
-  
-  
-
-  const { data: votes, error: votesError } = await supabase
-    .from('responses')
-    .select('poll_id')
-    .eq('user_id', user.id);
-
-  
-
-  if (votesError) {
-    setError("Failed to fetch user votes");
-    return;
-  }
-
-  const votedMap: { [pollId: string]: boolean } = {};
-
-  votes?.forEach((vote) => {
-    if (vote.poll_id) votedMap[vote.poll_id] = true;
-  });
-  setVotedPolls(votedMap);
-};
-
- 
+    const votedMap: { [pollId: string]: boolean } = {};
+    votes?.forEach((vote) => {
+      if (vote.poll_id) votedMap[vote.poll_id] = true;
+    });
+    setVotedPolls(votedMap);
+  };
 
   // Fetch polls and determine if user already voted
   const fetchPolls = async () => {
@@ -124,7 +109,7 @@ const Polling = () => {
 
       if (pollsError) throw pollsError;
 
-      // Transform polls and count votes, check user votes
+      // Transform polls and count votes
       const transformedPolls: Poll[] = await Promise.all(
         (pollsData || []).map(async (poll) => {
           const { data: responses } = await supabase
@@ -135,17 +120,12 @@ const Polling = () => {
           // Count votes
           type OptionKey = '1' | '2' | '3' | '4';
           const voteCounts: Record<OptionKey, number> = { '1': 0, '2': 0, '3': 0, '4': 0 };
-          // let userHasVoted = false;
+          
           responses?.forEach((response) => {
             if (response.selected_option in voteCounts) {
-
               voteCounts[response.selected_option as OptionKey]++;
-
-              // if (userId && response.user_id === userId) userHasVoted = true;
             }
           });
-
-          // setVotedPolls((prev) => ({ ...prev, [poll.id]: userHasVoted }));
 
           const options: PollOption[] = [
             { id: '1', text: poll.option1, votes: voteCounts['1'] },
@@ -186,41 +166,44 @@ const Polling = () => {
   };
 
   const handleVote = async (pollId: string) => {
-  if (votedPolls[pollId]) {
-    alert("You have already voted in this poll");
-    return;
-  }
+    if (votedPolls[pollId]) {
+      alert("You have already voted in this poll");
+      return;
+    }
 
-  const selectedOption = selectedOptions[pollId];
-  if (!selectedOption || !userId) return;
+    const selectedOption = selectedOptions[pollId];
+    if (!selectedOption || !userId) return;
 
-  try {
-    setVoting(prev => ({ ...prev, [pollId]: true }));
+    try {
+      setVoting(prev => ({ ...prev, [pollId]: true }));
 
-    const { error } = await supabase.from('responses').insert({
-      poll_id: pollId,
-      selected_option: selectedOption,
-      user_id: userId,
-      created_at: new Date().toISOString(),
-    });
+      const { error } = await supabase.from('responses').insert({
+        poll_id: pollId,
+        selected_option: selectedOption,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setVotedPolls(prev => ({ ...prev, [pollId]: true }));  // <-- update voted polls here immediately
-    await fetchPolls();
+      setVotedPolls(prev => ({ ...prev, [pollId]: true }));
+      await fetchPolls();
 
-    setSelectedOptions(prev => {
-      const copy = { ...prev };
-      delete copy[pollId];
-      return copy;
-    });
-  } catch (error) {
-    setError('Failed to submit vote. Please try again.');
-  } finally {
-    setVoting(prev => ({ ...prev, [pollId]: false }));
-  }
-};
+      setSelectedOptions(prev => {
+        const copy = { ...prev };
+        delete copy[pollId];
+        return copy;
+      });
+    } catch (error) {
+      setError('Failed to submit vote. Please try again.');
+    } finally {
+      setVoting(prev => ({ ...prev, [pollId]: false }));
+    }
+  };
 
+  const handleChatBotClick = () => {
+    navigate("/app/chat-bot");
+  };
 
   const chartConfig = {
     votes: {
@@ -248,21 +231,18 @@ const Polling = () => {
     );
   }
 
-   const handleChatBotClick = () => {
-    navigate("/app/chat-bot");
-  };
-  
-
   return (
     <div className="container mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-center mb-2">Live Polling </h1>
-        <p className="text-center text-muted-foreground">View real-time results from all active polls</p>
+        <h1 className="text-4xl font-bold text-center mb-2">Let's see which polls are open for voting!</h1>
+        <p className="text-center text-muted-foreground">View and vote on active polls using our AI assistant</p>
       </div>
+
       {polls.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
             <p className="text-lg text-muted-foreground">No active polls available at the moment.</p>
+            <p className="text-sm text-muted-foreground mt-2">Check back later or ask an admin to create some polls!</p>
           </CardContent>
         </Card>
       ) : (
@@ -279,7 +259,6 @@ const Polling = () => {
                     className="mt-2 max-w-full max-h-64 object-contain rounded"
                   />
                 )}
-                   
                 <div className="text-sm text-muted-foreground">
                   Total Votes: {poll.total_votes} • Created: {new Date(poll.created_at).toLocaleDateString()}
                 </div>
@@ -296,7 +275,7 @@ const Polling = () => {
                             type="radio"
                             name={`poll-${poll.id}`}
                             value={option.id}
-                             checked={selectedOptions[poll.id] === option.id}
+                            checked={selectedOptions[poll.id] === option.id}
                             onChange={() => handleOptionSelect(poll.id, option.id)}
                             className="w-4 h-4 text-blue-600"
                             disabled={votedPolls[poll.id]}
@@ -305,14 +284,23 @@ const Polling = () => {
                         </label>
                       ))}
                     </div>
-                    <Button
-                      onClick={() => handleVote(poll.id)}
-                      disabled={!selectedOptions[poll.id] || voting[poll.id] || votedPolls[poll.id]}  
-                      className="w-full"
-                    >
-                    
-                      {votedPolls[poll.id] ? 'Already Voted' : voting[poll.id] ? 'Submitting...' : 'Submit Vote'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleVote(poll.id)}
+                        disabled={!selectedOptions[poll.id] || voting[poll.id] || votedPolls[poll.id]}  
+                        className="flex-1"
+                      >
+                        {votedPolls[poll.id] ? 'Already Voted' : voting[poll.id] ? 'Submitting...' : 'Submit Vote'}
+                      </Button>
+                      <Button
+                        onClick={handleChatBotClick}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        <Bot className="h-4 w-4 mr-2" />
+                        Vote with AI
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Results Section */}
@@ -389,25 +377,25 @@ const Polling = () => {
                   )}
                 </div>
               </CardContent>
-               <div className="fixed bottom-6 right-18 ">
-  <Button
-    variant="outline"
-    size="icon"
-    className="h-20 w-20 rounded-full shadow-xl hover:scale-105 transition-transform flex flex-col"
-    onClick={handleChatBotClick}
-  >
-    
-    <Bot className="h-20 w-20 text-primary" />
-   <span>ChatBot</span>
-  </Button>
-</div>
             </Card>
-            
           ))}
         </div>
       )}
+
+      {/* Floating ChatBot Button */}
+      <div className="fixed bottom-6 right-6">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-16 w-16 rounded-full shadow-xl hover:scale-105 transition-transform flex flex-col"
+          onClick={handleChatBotClick}
+        >
+          <Bot className="h-8 w-8 text-primary" />
+          <span className="text-xs mt-1">AI</span>
+        </Button>
+      </div>
     </div>
   );
 };
 
-export default Polling;
+export default UserPolling;
