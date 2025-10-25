@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { chatWithPollBot, resetChat } from "@/utils/geminiModel";
 import { useUserRole } from "./useUserRole";
+import { Bot, Send, RotateCcw, Upload, FileText, Image as ImageIcon, Download, User as UserIcon, X, Paperclip } from "lucide-react";
 
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -8,9 +9,14 @@ import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "../../supabaseClient";
 
 type Role = "user" | "model";
@@ -28,6 +34,9 @@ interface Message {
 
 export default function ChatBot() {
   const userRole = useUserRole();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -47,6 +56,19 @@ export default function ChatBot() {
   const [fileType, setFileType] = useState<"image" | "pdf" | "doc" | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDescription, setFileDescription] = useState("");
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+    }
+  }, [input]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   // Set initial message based on user role
   useEffect(() => {
@@ -143,6 +165,13 @@ export default function ChatBot() {
       setFilePreview(null);
       setSelectedFile(null);
     }
+  };
+
+  const clearFile = () => {
+    setFilePreview(null);
+    setFileType(null);
+    setSelectedFile(null);
+    setFileDescription("");
   };
 
   const handleSend = async () => {
@@ -267,10 +296,7 @@ export default function ChatBot() {
 
       // Clear file state after successful poll creation
       if (res.type === "poll") {
-        setFilePreview(null);
-        setFileType(null);
-        setSelectedFile(null);
-        setFileDescription("");
+        clearFile();
       }
     } catch (err: any) {
       console.error("Error chatting with AI:", err);
@@ -292,175 +318,281 @@ export default function ChatBot() {
             : "Let's see which polls are open for voting!",
       },
     ]);
-    setFilePreview(null);
-    setFileType(null);
-    setSelectedFile(null);
-    setFileDescription("");
+    clearFile();
     setError("");
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
-    <div className="max-w-5xl mx-auto mt-10 shadow-lg">
-      <Card>
-        <CardHeader>
-          <CardTitle>Poll Assistant</CardTitle>
-        </CardHeader>
+    <div className="flex flex-col h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      {/* Header */}
+      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary shadow-sm">
+                <Bot className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold tracking-tight">AI Poll Assistant</h1>
+              </div>
+            </div>
+            <Button onClick={handleReset} variant="ghost" size="sm" className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              <span className="hidden sm:inline">New chat</span>
+            </Button>
+          </div>
+        </div>
+      </div>
 
-        <CardContent className="flex flex-col gap-4">
-          {/* Error display */}
-          {error && (
-            <div className="text-red-500 text-sm mb-2 p-2 bg-red-50 rounded">{error}</div>
-          )}
+      {/* Chat Messages Area - Scrollable */}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="container max-w-5xl mx-auto px-4 py-6">
+            {/* Error display */}
+            {error && (
+              <Alert variant="destructive" className="mb-4 animate-in slide-in-from-top-2">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          {/* Chat messages */}
-          <div className="flex flex-col gap-2 h-110 overflow-y-auto p-2 bg-gray-50 rounded-lg">
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+            {/* Messages */}
+            <div className="space-y-6 pb-32">
+              {messages.map((m, i) => (
                 <div
-                  className={`px-3 py-2 rounded-lg max-w-[70%] ${
-                    m.role === "user" ? "bg-gray-200 text-gray-900" : "bg-gray-200 text-gray-900"
-                  }`}
+                  key={i}
+                  className={`flex gap-4 ${m.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <b>{m.role === "user" ? "You" : "AI"}:</b> {m.text}
-
-                  {/* Display file info if available */}
-                  {m.fileInfo && (
-                    <div className="mt-2 p-2 bg-blue-50 rounded border">
-                      <p className="text-sm font-medium">Attached File:</p>
-                      {m.fileInfo.file_type === "image" && m.fileInfo.file_url && (
-                        <img
-                          src={m.fileInfo.file_url}
-                          alt="Attached"
-                          className="mt-1 max-w-xs max-h-32 object-contain rounded"
-                        />
-                      )}
-                      {(m.fileInfo.file_type === "pdf" || m.fileInfo.file_type === "doc") && (
-                        <div className="mt-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const a = document.createElement("a");
-                              a.href = m.fileInfo!.file_url!;
-                              a.download = "attached-file";
-                              a.click();
-                            }}
-                          >
-                            Download File
-                          </Button>
-                        </div>
-                      )}
-                      {m.fileInfo.description && (
-                        <p className="text-xs mt-1 text-gray-600">{m.fileInfo.description}</p>
-                      )}
+                  {m.role === "model" && (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 mt-1">
+                      <Bot className="h-5 w-5 text-primary" />
                     </div>
                   )}
 
-                  {/* Display poll results if available */}
-                  {m.pollResults && m.pollResults.length > 0 && (
-                    <div className="mt-2 p-3 bg-green-50 rounded border">
-                      <p className="text-sm font-medium mb-2">📊 Detailed Poll Results:</p>
-                      <div className="space-y-3">
-                        {m.pollResults.map((poll: any, index: number) => (
-                          <div key={poll.id} className="p-2 bg-white rounded border">
-                            <h4 className="font-medium text-sm">{poll.question}</h4>
-                            <p className="text-xs text-gray-600 mb-2">
-                              Total Votes: {poll.total_votes} • Created:{" "}
-                              {new Date(poll.created_at).toLocaleDateString()}
-                            </p>
-                            <div className="space-y-1">
-                              {poll.options.map((option: any, optIndex: number) => {
-                                const percentage =
-                                  poll.total_votes > 0
-                                    ? (option.votes / poll.total_votes) * 100
-                                    : 0;
-                                return (
-                                  <div
-                                    key={option.id}
-                                    className="flex items-center justify-between text-xs"
-                                  >
-                                    <span className="flex-1">{option.text}</span>
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-16 bg-gray-200 rounded-full h-2">
-                                        <div
-                                          className="bg-blue-500 h-2 rounded-full"
-                                          style={{ width: `${percentage}%` }}
-                                        ></div>
-                                      </div>
-                                      <span className="w-12 text-right">
-                                        {option.votes} ({percentage.toFixed(1)}%)
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                  <div className={`flex flex-col gap-2 ${m.role === "user" ? "max-w-[85%] items-end" : "max-w-[90%] items-start"}`}>
+                    <div
+                      className={`rounded-2xl px-5 py-3.5 ${
+                        m.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                      }`}
+                    >
+                      <div className="text-[15px] leading-7 whitespace-pre-wrap">
+                        {m.text}
                       </div>
+
+                      {/* Display file info if available */}
+                      {m.fileInfo && (
+                        <div className="mt-4 rounded-xl border bg-background/50 p-4">
+                          <div className="flex items-center gap-2 text-sm font-medium mb-3">
+                            {m.fileInfo.file_type === "image" ? (
+                              <ImageIcon className="h-4 w-4" />
+                            ) : (
+                              <FileText className="h-4 w-4" />
+                            )}
+                            Attached File
+                          </div>
+                          {m.fileInfo.file_type === "image" && m.fileInfo.file_url && (
+                            <img
+                              src={m.fileInfo.file_url}
+                              alt="Attached"
+                              className="mt-2 max-w-md max-h-48 object-contain rounded-lg border"
+                            />
+                          )}
+                          {(m.fileInfo.file_type === "pdf" || m.fileInfo.file_type === "doc") && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const a = document.createElement("a");
+                                a.href = m.fileInfo!.file_url!;
+                                a.download = "attached-file";
+                                a.click();
+                              }}
+                              className="mt-2 gap-2"
+                            >
+                              <Download className="h-3 w-3" />
+                              Download File
+                            </Button>
+                          )}
+                          {m.fileInfo.description && (
+                            <p className="text-sm mt-3 text-muted-foreground leading-relaxed">
+                              {m.fileInfo.description}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Display poll results if available */}
+                      {m.pollResults && m.pollResults.length > 0 && (
+                        <div className="mt-4 space-y-4">
+                          {m.pollResults.map((poll: any) => (
+                            <div key={poll.id} className="rounded-xl border bg-background p-4">
+                              <h4 className="font-semibold text-base mb-3">{poll.question}</h4>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                                <Badge variant="secondary" className="text-xs">
+                                  {poll.total_votes} votes
+                                </Badge>
+                                <span>•</span>
+                                <span>{new Date(poll.created_at).toLocaleDateString()}</span>
+                              </div>
+                              <div className="space-y-3">
+                                {poll.options.map((option: any) => {
+                                  const percentage =
+                                    poll.total_votes > 0
+                                      ? (option.votes / poll.total_votes) * 100
+                                      : 0;
+                                  return (
+                                    <div key={option.id} className="space-y-2">
+                                      <div className="flex items-center justify-between text-sm">
+                                        <span className="font-medium">{option.text}</span>
+                                        <span className="text-muted-foreground">
+                                          {option.votes} ({percentage.toFixed(1)}%)
+                                        </span>
+                                      </div>
+                                      <Progress value={percentage} className="h-2.5" />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {m.role === "user" && (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary mt-1">
+                      <UserIcon className="h-5 w-5 text-primary-foreground" />
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {loading && <p className="text-sm italic text-gray-500">AI is thinking...</p>}
+              {loading && (
+                <div className="flex gap-4 justify-start">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 mt-1">
+                    <Bot className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="rounded-2xl bg-muted px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
+                        <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
           </div>
+        </ScrollArea>
+      </div>
 
-          {/* File upload section */}
-          <div className="space-y-2">
-            <Label htmlFor="fileUpload">Upload PDF, DOCX or Image file (optional)</Label>
-            <Input
-              type="file"
-              id="fileUpload"
-              accept=".pdf,.doc,.docx,image/*"
-              onChange={handleFileChange}
-            />
-
-            {/* File preview */}
-            {fileType === "image" && filePreview && (
-              <div className="flex justify-center">
+      {/* ChatGPT-style Fixed Input Area */}
+      <div className="flex-shrink-0 border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container max-w-5xl mx-auto px-4 py-4">
+          {/* File Preview Above Input */}
+          {(filePreview || selectedFile) && (
+            <div className="mb-3 p-3 bg-muted/50 rounded-xl border flex items-start gap-3">
+              {fileType === "image" && filePreview && (
                 <img
                   src={filePreview}
                   alt="Preview"
-                  style={{ maxWidth: "300px", maxHeight: "200px" }}
-                  className="rounded border"
+                  className="w-20 h-20 rounded-lg object-cover border"
                 />
+              )}
+              {(fileType === "pdf" || fileType === "doc") && (
+                <div className="flex items-center justify-center w-20 h-20 bg-background rounded-lg border">
+                  <FileText className="h-10 w-10 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {fileType === "image" ? "Image attached" : selectedFile?.name}
+                </p>
+                {fileDescription && (
+                  <p className="text-xs text-muted-foreground truncate mt-1">{fileDescription.slice(0, 80)}...</p>
+                )}
               </div>
-            )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 shrink-0"
+                onClick={clearFile}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
-            {/* File description for PDF/DOC */}
-            {fileDescription && (
-              <div className="p-2 bg-gray-100 rounded text-sm">
-                <p className="font-medium">Extracted content:</p>
-                <p className="text-gray-600">{fileDescription}</p>
-              </div>
-            )}
-          </div>
+          {/* Input Container - ChatGPT Style */}
+          <div className="relative flex items-end gap-2 rounded-3xl border bg-background shadow-sm px-4 py-2.5 focus-within:shadow-md transition-shadow">
+            {/* Attach Button */}
+            <label htmlFor="fileUpload" className="cursor-pointer shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-full hover:bg-muted"
+                asChild
+              >
+                <div>
+                  <Paperclip className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </Button>
+              <Input
+                id="fileUpload"
+                type="file"
+                className="hidden"
+                accept=".pdf,.doc,.docx,image/*"
+                onChange={handleFileChange}
+              />
+            </label>
 
-          {/* Input + Send */}
-          <div className="flex gap-2">
-            <Input
+            {/* Textarea */}
+            <Textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Type your message..."
+              onKeyDown={handleKeyDown}
+              placeholder="Message AI Poll Assistant..."
+              disabled={loading}
+              className="min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent p-2.5 text-[15px] leading-6 focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin"
+              rows={1}
             />
-            <Button onClick={handleSend} disabled={loading}>
-              Send
+
+            {/* Send Button */}
+            <Button
+              onClick={handleSend}
+              disabled={loading || !input.trim()}
+              size="icon"
+              className="h-10 w-10 rounded-full shrink-0 disabled:opacity-50"
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </div>
-        </CardContent>
 
-        <CardFooter className="flex justify-center">
-          <Button onClick={handleReset} variant="outline">
-            Reset Chat
-          </Button>
-        </CardFooter>
-      </Card>
+          {/* Footer Text */}
+          <p className="text-xs text-center text-muted-foreground mt-3">
+            AI can make mistakes. Please verify important information.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

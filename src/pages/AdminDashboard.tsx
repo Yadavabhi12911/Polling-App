@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Bot } from "lucide-react";
+import { MessageSquare, Bot, BarChart3, FileText, Download, X, Upload, Trash2, Edit3, Plus } from "lucide-react";
 
 import mammoth from "mammoth";
 
@@ -9,9 +9,12 @@ import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "../../supabaseClient";
 
 type Poll = {
@@ -50,12 +53,11 @@ const AdminDashboard: React.FC = () => {
   const [error, setError] = useState("");
 
   const [filePreview, setFilePreview] = useState<string | null>(null);
-  const [fileType, setFileType] = useState<"image" | "pdf" | "doc" | null>(
-    null
-  );
+  const [fileType, setFileType] = useState<"image" | "pdf" | "doc" | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const isEdit = useMemo(() => editingId !== null, [editingId]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const load = async () => {
@@ -87,16 +89,13 @@ const AdminDashboard: React.FC = () => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-   const navigate = useNavigate();
-
   const handleResultViewClick = () => {
-    navigate("/admin/poll-result");
+    navigate("/app/polling");
   };
 
   const handleChatBotClick = () => {
-    navigate("/admin/chat-bot");
+    navigate("/app/chat-bot");
   };
-
 
   // Try to extract a date-like string from text to use as description
   const extractDateFromText = (text: string): string => {
@@ -130,10 +129,7 @@ const AdminDashboard: React.FC = () => {
       setForm((prev) => ({ ...prev, description: extracted || fullText }));
     } catch (err: any) {
       console.error("Failed to parse PDF:", err);
-      setError(
-        err?.message ||
-          "Failed to read PDF content. You can still upload the file."
-      );
+      setError(err?.message || "Failed to read PDF content. You can still upload the file.");
     } finally {
       setFilePreview(null);
     }
@@ -148,10 +144,7 @@ const AdminDashboard: React.FC = () => {
       setForm((prev) => ({ ...prev, description: extracted || result.value }));
     } catch (err: any) {
       console.error("Failed to parse DOC/DOCX:", err);
-      setError(
-        err?.message ||
-          "Failed to read document content. You can still upload the file."
-      );
+      setError(err?.message || "Failed to read document content. You can still upload the file.");
     } finally {
       setFilePreview(null);
     }
@@ -171,16 +164,15 @@ const AdminDashboard: React.FC = () => {
       setSelectedFile(null);
     } else if (mimeType === "application/pdf") {
       setFileType("pdf");
-      setSelectedFile(file); // ensure file is preserved even if parsing fails
+      setSelectedFile(file);
       setForm((prev) => ({ ...prev, image_url: "" }));
       await readPDFContent(file);
     } else if (
-      mimeType ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
       mimeType === "application/msword"
     ) {
       setFileType("doc");
-      setSelectedFile(file); // ensure file is preserved even if parsing fails
+      setSelectedFile(file);
       setForm((prev) => ({ ...prev, image_url: "" }));
       await readDocxContent(file);
     } else {
@@ -189,6 +181,12 @@ const AdminDashboard: React.FC = () => {
       setFilePreview(null);
       setSelectedFile(null);
     }
+  };
+
+  const clearFile = () => {
+    setFilePreview(null);
+    setFileType(null);
+    setSelectedFile(null);
   };
 
   const savePoll = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -205,10 +203,7 @@ const AdminDashboard: React.FC = () => {
 
     try {
       let imageUrl = form.image_url;
-      
-
       let fileUrl = form.file_url;
-      
 
       if (fileType === "image" && filePreview) {
         const response = await fetch(filePreview);
@@ -218,14 +213,9 @@ const AdminDashboard: React.FC = () => {
           .from("poll-images")
           .upload(fileName, blob);
 
-        console.log("filename --> ", fileName);
-
         if (uploadError) throw uploadError;
 
-        const { data: publicData } = supabase.storage
-          .from("poll-images")
-          .getPublicUrl(fileName);
-
+        const { data: publicData } = supabase.storage.from("poll-images").getPublicUrl(fileName);
         imageUrl = publicData.publicUrl;
       }
 
@@ -239,11 +229,9 @@ const AdminDashboard: React.FC = () => {
             upsert: false,
           });
         if (uploadDocErr) throw uploadDocErr;
-        
-        const { data : publicData } = supabase.storage.from("poll-files").getPublicUrl(path)
 
-        fileUrl = publicData.publicUrl
-
+        const { data: publicData } = supabase.storage.from("poll-files").getPublicUrl(path);
+        fileUrl = publicData.publicUrl;
       }
 
       const insertData = {
@@ -255,27 +243,14 @@ const AdminDashboard: React.FC = () => {
       };
 
       if (isEdit) {
-        const { error } = await supabase
-          .from("polls")
-          .update(insertData)
-          .eq("id", editingId!);
-
+        const { error } = await supabase.from("polls").update(insertData).eq("id", editingId!);
         if (error) throw error;
-
         setPolls((prev) =>
-          prev.map((p) =>
-            p.id === editingId ? ({ ...p, ...insertData } as Poll) : p
-          )
+          prev.map((p) => (p.id === editingId ? ({ ...p, ...insertData } as Poll) : p))
         );
       } else {
-        const { data, error } = await supabase
-          .from("polls")
-          .insert(insertData)
-          .select("*")
-          .single();
-
+        const { data, error } = await supabase.from("polls").insert(insertData).select("*").single();
         if (error) throw error;
-
         setPolls((prev) => [data as Poll, ...prev]);
       }
 
@@ -305,31 +280,23 @@ const AdminDashboard: React.FC = () => {
     setSelectedFile(null);
   };
 
-const handleDownload = async (url: string, filename?: string) => {
-  try {
-    // Fetch the file data as a blob
-    const response = await fetch(url);
-    const blob = await response.blob();
-
-    // Create a temporary blob URL
-    const blobUrl = window.URL.createObjectURL(blob);
-
-    // Create an anchor and trigger download
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.download = filename || "download"; // default name if not provided
-    document.body.appendChild(a);
-    a.click();
-
-    // Clean up
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(blobUrl);
-  } catch (err) {
-    console.error(err);
-    alert("Failed to start download");
-  }
-};
-
+  const handleDownload = async (url: string, filename?: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename || "download";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to start download");
+    }
+  };
 
   const deletePoll = async (pollId: number) => {
     if (!confirm("Delete this poll?")) return;
@@ -343,203 +310,340 @@ const handleDownload = async (url: string, filename?: string) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      <div className="container max-w-7xl mx-auto px-4 py-8 space-y-8">
+        {/* Hero Section */}
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
+              <BarChart3 className="h-8 w-8 text-primary-foreground" strokeWidth={2.5} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Vote Assistant</h1>
+            <CardDescription className="text-lg max-w-2xl mx-auto">
+              Create, manage, and monitor polls for your organization with powerful analytics and AI assistance
+            </CardDescription>
+          </div>
+        </div>
 
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-center mb-2">What poll tasks are on your agenda today?</h1>
-        <p className="text-center text-muted-foreground">Create, manage, and monitor polls for your organization</p>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>{isEdit ? "Edit Poll" : "Create Poll"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error && <p className="text-red-500 mb-2">{error}</p>}
-          <form
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
-            onSubmit={savePoll}
-          >
-            <div className="md:col-span-2 flex flex-col gap-3">
-              <Label htmlFor="question">Question</Label>
-              <Input
-                id="question"
-                name="question"
-                value={form.question || ""}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="option1">Option 1</Label>
-              <Input
-                id="option1"
-                name="option1"
-                value={form.option1 || ""}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="option2">Option 2</Label>
-              <Input
-                id="option2"
-                name="option2"
-                value={form.option2 || ""}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="option3">Option 3</Label>
-              <Input
-                id="option3"
-                name="option3"
-                value={form.option3 || ""}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="option4">Option 4</Label>
-              <Input
-                id="option4"
-                name="option4"
-                value={form.option4 || ""}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="md:col-span-2 flex flex-col gap-3">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                name="description"
-                value={form.description || ""}
-                onChange={handleChange}
-              />
-            </div>
-
-            {/* File upload input */}
-            <div className="md:col-span-2 flex flex-col gap-3">
-              <Label htmlFor="fileUpload">Upload PDF, DOCX or Image file</Label>
-              <Input
-                type="file"
-                id="fileUpload"
-                accept=".pdf,.doc,.docx,image/*"
-                onChange={handleFileChange}
-              />
-            </div>
-
-            {/* Display image preview if available */}
-            {fileType === "image" && filePreview && (
-              <div className="md:col-span-2 flex justify-center">
-                <img
-                  src={filePreview}
-                  alt="Preview"
-                  style={{ maxWidth: "400px", maxHeight: "300px" }}
-                />
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-muted">
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                <BarChart3 className="h-6 w-6 text-primary" />
               </div>
+              <div>
+                <p className="text-2xl font-bold">{polls.length}</p>
+                <p className="text-sm text-muted-foreground">Active Polls</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-muted cursor-pointer hover:shadow-lg transition-shadow" onClick={handleChatBotClick}>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-900/20">
+                <Bot className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">AI Assistant</p>
+                <p className="text-sm text-muted-foreground">Get help with polls</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-muted cursor-pointer hover:shadow-lg transition-shadow" onClick={handleResultViewClick}>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/20">
+                <MessageSquare className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">View Results</p>
+                <p className="text-sm text-muted-foreground">Analyze poll data</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Create/Edit Poll Card */}
+        <Card className="border-muted shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                {isEdit ? <Edit3 className="h-5 w-5 text-primary" /> : <Plus className="h-5 w-5 text-primary" />}
+              </div>
+              {isEdit ? "Edit Poll" : "Create New Poll"}
+            </CardTitle>
+            <CardDescription>
+              {isEdit ? "Update your poll details" : "Fill in the form below to create a new poll"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
-            <div className="md:col-span-2 flex gap-2">
-              <Button type="submit" disabled={saving}>
-                {isEdit ? "Update" : "Create"}
-              </Button>
-              {isEdit && (
-                <Button type="button" variant="secondary" onClick={resetForm}>
-                  Cancel
-                </Button>
-              )}
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-         
-         <Button onClick={handleResultViewClick}>View All Poll Result</Button>
+            <form className="space-y-6" onSubmit={savePoll}>
+              {/* Question */}
+              <div className="space-y-2">
+                <Label htmlFor="question">Poll Question *</Label>
+                <Input
+                  id="question"
+                  name="question"
+                  value={form.question || ""}
+                  onChange={handleChange}
+                  required
+                  className="h-12 text-base"
+                  placeholder="What would you like to ask your audience?"
+                />
+              </div>
 
- <div className="fixed bottom-6 right-18 ">
-  <Button
-    variant="outline"
-    size="icon"
-    className="h-20 w-20 rounded-full shadow-xl hover:scale-105 transition-transform flex flex-col"
-    onClick={handleChatBotClick}
-  >
-    
-    <Bot className="h-20 w-20 text-primary" />
-   <span>ChatBot</span>
-  </Button>
-</div>
-
-
-      <Card>
-        <CardHeader>
-          <CardTitle>All Polls</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p>Loading...</p>
-          ) : polls.length === 0 ? (
-            <p>No polls found</p>
-          ) : (
-            <div className="space-y-3">
-              {polls.map((p) => (
-                <div
-                  key={p.id}
-                  className="border rounded p-3 flex items-start justify-between gap-4"
-                >
-                  <div>
-                    <p className="font-medium">{p.question}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Options:{" "}
-                      {[p.option1, p.option2, p.option3, p.option4]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                    {p.description && (
-                      <p className="mt-1 text-sm">{p.description}</p>
-                    )}
-                    {p.image_url && (
-                      <img
-                        src={p.image_url}
-                        alt="Poll Visual"
-                        className="mt-2 max-w-xs max-h-48 object-contain rounded"
-                      />
-                    )}
-                    { (p.file_url || p.image_url) && (
-                      <p className="mt-2 text-sm">
-                        Attached file:{" "}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDownload(p.file_url! || p.image_url!)}
-                        >
-                          Download
-                        </Button>
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => startEdit(p)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => deletePoll(p.id)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
+              {/* Options Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="option1">Option 1 *</Label>
+                  <Input
+                    id="option1"
+                    name="option1"
+                    value={form.option1 || ""}
+                    onChange={handleChange}
+                    required
+                    placeholder="First choice"
+                  />
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      
-  
+
+                <div className="space-y-2">
+                  <Label htmlFor="option2">Option 2 *</Label>
+                  <Input
+                    id="option2"
+                    name="option2"
+                    value={form.option2 || ""}
+                    onChange={handleChange}
+                    required
+                    placeholder="Second choice"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="option3">Option 3 (Optional)</Label>
+                  <Input
+                    id="option3"
+                    name="option3"
+                    value={form.option3 || ""}
+                    onChange={handleChange}
+                    placeholder="Third choice"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="option4">Option 4 (Optional)</Label>
+                  <Input
+                    id="option4"
+                    name="option4"
+                    value={form.option4 || ""}
+                    onChange={handleChange}
+                    placeholder="Fourth choice"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="description">Description (Optional)</Label>
+                <Input
+                  id="description"
+                  name="description"
+                  value={form.description || ""}
+                  onChange={handleChange}
+                  placeholder="Add context or additional information"
+                />
+              </div>
+
+              {/* File Upload */}
+              <div className="space-y-2">
+                <Label htmlFor="fileUpload">Attach File (Optional)</Label>
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="fileUpload"
+                    className="flex flex-1 items-center justify-center h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="text-center">
+                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-semibold">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, or images</p>
+                    </div>
+                    <Input
+                      id="fileUpload"
+                      type="file"
+                      accept=".pdf,.doc,.docx,image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* File Preview */}
+                {filePreview && (
+                  <div className="relative p-4 bg-muted/30 rounded-lg border">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-2 right-2 h-8 w-8 p-0"
+                      onClick={clearFile}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <img
+                      src={filePreview}
+                      alt="Preview"
+                      className="max-w-md max-h-48 rounded-lg object-contain mx-auto"
+                    />
+                  </div>
+                )}
+
+                {selectedFile && (
+                  <Badge variant="secondary" className="gap-2">
+                    <FileText className="h-3 w-3" />
+                    {selectedFile.name}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button type="submit" disabled={saving} className="flex-1 gap-2">
+                  {saving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      {isEdit ? "Updating..." : "Creating..."}
+                    </>
+                  ) : (
+                    <>
+                      {isEdit ? <Edit3 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                      {isEdit ? "Update Poll" : "Create Poll"}
+                    </>
+                  )}
+                </Button>
+                {isEdit && (
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* All Polls List */}
+        <Card className="border-muted shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                <BarChart3 className="h-5 w-5 text-primary" />
+              </div>
+              All Polls
+              <Badge variant="secondary" className="ml-auto">{polls.length}</Badge>
+            </CardTitle>
+            <CardDescription>Manage and view all your created polls</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-muted-foreground">Loading polls...</p>
+              </div>
+            ) : polls.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mx-auto mb-4">
+                  <BarChart3 className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No polls created yet</h3>
+                <p className="text-sm text-muted-foreground">Create your first poll to get started!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {polls.map((p) => (
+                  <Card key={p.id} className="border-muted">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between gap-6">
+                        <div className="flex-1 space-y-4">
+                          <div>
+                            <h3 className="font-semibold text-lg mb-2">{p.question}</h3>
+                            <div className="flex flex-wrap gap-2">
+                              {[p.option1, p.option2, p.option3, p.option4]
+                                .filter(Boolean)
+                                .map((opt, idx) => (
+                                  <Badge key={idx} variant="secondary">
+                                    {opt}
+                                  </Badge>
+                                ))}
+                            </div>
+                          </div>
+
+                          {p.description && (
+                            <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+                              {p.description}
+                            </p>
+                          )}
+
+                          {p.image_url && (
+                            <img
+                              src={p.image_url}
+                              alt="Poll Visual"
+                              className="max-w-sm max-h-40 object-contain rounded-lg border"
+                            />
+                          )}
+
+                          {(p.file_url || p.image_url) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDownload(p.file_url! || p.image_url!)}
+                              className="gap-2"
+                            >
+                              <Download className="h-3 w-3" />
+                              Download File
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <Button size="sm" variant="outline" onClick={() => startEdit(p)} className="gap-2">
+                            <Edit3 className="h-3 w-3" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => deletePoll(p.id)}
+                            className="gap-2 text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Floating AI Button */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <Button size="lg" className="h-14 w-14 rounded-full shadow-2xl hover:scale-110 transition-transform" onClick={handleChatBotClick}>
+            <Bot className="h-6 w-6" strokeWidth={2.5} />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };

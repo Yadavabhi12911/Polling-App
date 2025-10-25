@@ -3,11 +3,15 @@ import { supabase } from '../../supabaseClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from './ui/chart';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { Label } from './ui/label';
+import { Separator } from './ui/separator';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Bot } from "lucide-react";
+import { Bot, Calendar, Users, Check, Loader2, BarChart3 } from "lucide-react";
 import { useUserRole } from './useUserRole';
-
 
 interface PollOption {
   id: string;
@@ -26,7 +30,13 @@ interface Poll {
   is_active: boolean | null;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+// Vibrant color palette for charts
+const CHART_COLORS = [
+  '#3b82f6', // Blue
+  '#10b981', // Green
+  '#f59e0b', // Amber
+  '#ef4444', // Red
+];
 
 const Polling = () => {
   const userRole = useUserRole();
@@ -47,59 +57,51 @@ const Polling = () => {
     }
     
     const setup = async () => {
-      await fetchUserAndVotes()
-      
+      await fetchUserAndVotes();
     };
     setup();
   }, [userRole, navigate]);
 
-  useEffect( () => {
-     const fetchPollsData = async () => {
-        await fetchPolls();
-      }
+  useEffect(() => {
+    const fetchPollsData = async () => {
+      await fetchPolls();
+    };
 
-      fetchPollsData()
-  },[])
+    fetchPollsData();
+  }, []);
 
   // Fetch current logged-in user ID and vote
   const fetchUserAndVotes = async () => {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError) {
-    setError("Failed to fetch user info");
-    return;
-  }
-  if (!user) {
-    setError("User not logged in");
-    return;
-  }
-  setUserId(user.id);
-  
-  
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError) {
+      setError("Failed to fetch user info");
+      return;
+    }
+    if (!user) {
+      setError("User not logged in");
+      return;
+    }
+    setUserId(user.id);
 
-  const { data: votes, error: votesError } = await supabase
-    .from('responses')
-    .select('poll_id')
-    .eq('user_id', user.id);
+    const { data: votes, error: votesError } = await supabase
+      .from('responses')
+      .select('poll_id')
+      .eq('user_id', user.id);
 
-  
+    if (votesError) {
+      setError("Failed to fetch user votes");
+      return;
+    }
 
-  if (votesError) {
-    setError("Failed to fetch user votes");
-    return;
-  }
-
-  const votedMap: { [pollId: string]: boolean } = {};
-
-  votes?.forEach((vote) => {
-    if (vote.poll_id) votedMap[vote.poll_id] = true;
-  });
-  setVotedPolls(votedMap);
-};
-
- 
+    const votedMap: { [pollId: string]: boolean } = {};
+    votes?.forEach((vote) => {
+      if (vote.poll_id) votedMap[vote.poll_id] = true;
+    });
+    setVotedPolls(votedMap);
+  };
 
   // Fetch polls and determine if user already voted
   const fetchPolls = async () => {
@@ -135,17 +137,11 @@ const Polling = () => {
           // Count votes
           type OptionKey = '1' | '2' | '3' | '4';
           const voteCounts: Record<OptionKey, number> = { '1': 0, '2': 0, '3': 0, '4': 0 };
-          // let userHasVoted = false;
           responses?.forEach((response) => {
             if (response.selected_option in voteCounts) {
-
               voteCounts[response.selected_option as OptionKey]++;
-
-              // if (userId && response.user_id === userId) userHasVoted = true;
             }
           });
-
-          // setVotedPolls((prev) => ({ ...prev, [poll.id]: userHasVoted }));
 
           const options: PollOption[] = [
             { id: '1', text: poll.option1, votes: voteCounts['1'] },
@@ -186,41 +182,40 @@ const Polling = () => {
   };
 
   const handleVote = async (pollId: string) => {
-  if (votedPolls[pollId]) {
-    alert("You have already voted in this poll");
-    return;
-  }
+    if (votedPolls[pollId]) {
+      alert("You have already voted in this poll");
+      return;
+    }
 
-  const selectedOption = selectedOptions[pollId];
-  if (!selectedOption || !userId) return;
+    const selectedOption = selectedOptions[pollId];
+    if (!selectedOption || !userId) return;
 
-  try {
-    setVoting(prev => ({ ...prev, [pollId]: true }));
+    try {
+      setVoting(prev => ({ ...prev, [pollId]: true }));
 
-    const { error } = await supabase.from('responses').insert({
-      poll_id: pollId,
-      selected_option: selectedOption,
-      user_id: userId,
-      created_at: new Date().toISOString(),
-    });
+      const { error } = await supabase.from('responses').insert({
+        poll_id: pollId,
+        selected_option: selectedOption,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setVotedPolls(prev => ({ ...prev, [pollId]: true }));  // <-- update voted polls here immediately
-    await fetchPolls();
+      setVotedPolls(prev => ({ ...prev, [pollId]: true }));
+      await fetchPolls();
 
-    setSelectedOptions(prev => {
-      const copy = { ...prev };
-      delete copy[pollId];
-      return copy;
-    });
-  } catch (error) {
-    setError('Failed to submit vote. Please try again.');
-  } finally {
-    setVoting(prev => ({ ...prev, [pollId]: false }));
-  }
-};
-
+      setSelectedOptions(prev => {
+        const copy = { ...prev };
+        delete copy[pollId];
+        return copy;
+      });
+    } catch (error) {
+      setError('Failed to submit vote. Please try again.');
+    } finally {
+      setVoting(prev => ({ ...prev, [pollId]: false }));
+    }
+  };
 
   const chartConfig = {
     votes: {
@@ -231,8 +226,9 @@ const Polling = () => {
   if (loading) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-lg">Loading polls...</div>
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Loading polls...</p>
         </div>
       </div>
     );
@@ -241,88 +237,175 @@ const Polling = () => {
   if (error) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-lg text-red-600">{error}</div>
-        </div>
+        <Alert variant="destructive" className="max-w-2xl mx-auto">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       </div>
     );
   }
 
-   const handleChatBotClick = () => {
+  const handleChatBotClick = () => {
     navigate("/app/chat-bot");
   };
-  
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-center mb-2">Live Polling </h1>
-        <p className="text-center text-muted-foreground">View real-time results from all active polls</p>
-      </div>
-      {polls.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <p className="text-lg text-muted-foreground">No active polls available at the moment.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {polls.map((poll) => (
-            <Card key={poll.id} className="w-full">
-              <CardHeader>
-                <CardTitle className="text-xl">{poll.question}</CardTitle>
-                <CardDescription>{poll.description}</CardDescription>
-                {poll.image_url && (
-                  <img
-                    src={poll.image_url}
-                    alt="Poll"
-                    className="mt-2 max-w-full max-h-64 object-contain rounded"
-                  />
-                )}
-                   
-                <div className="text-sm text-muted-foreground">
-                  Total Votes: {poll.total_votes} • Created: {new Date(poll.created_at).toLocaleDateString()}
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      <div className="container mx-auto p-6">
+        {/* Header */}
+        <div className="text-center mb-8 space-y-4">
+          <div className="flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
+              <BarChart3 className="h-8 w-8 text-primary-foreground" strokeWidth={2.5} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Live Polling</h1>
+            <CardDescription className="text-base">
+              View real-time results from all active polls
+            </CardDescription>
+          </div>
+        </div>
+
+        {polls.length === 0 ? (
+          <Card className="max-w-2xl mx-auto text-center py-12 border-muted">
+            <CardContent className="space-y-4">
+              <div className="flex justify-center">
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                  <BarChart3 className="h-6 w-6 text-muted-foreground" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {/* Voting Interface */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-lg">Cast Your Vote</h4>
-                    <div className="space-y-2">
-                      {poll.options.map((option, index) => (
-                        <label key={option.id} className="flex items-center space-x-3 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`poll-${poll.id}`}
-                            value={option.id}
-                             checked={selectedOptions[poll.id] === option.id}
-                            onChange={() => handleOptionSelect(poll.id, option.id)}
-                            className="w-4 h-4 text-blue-600"
-                            disabled={votedPolls[poll.id]}
-                          />
-                          <span className="text-sm">{option.text}</span>
-                        </label>
-                      ))}
+              </div>
+              <p className="text-lg text-muted-foreground">No active polls available at the moment.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {polls.map((poll) => (
+              <Card key={poll.id} className="border-muted hover:shadow-lg transition-shadow">
+                <CardHeader className="space-y-3">
+                  <div className="space-y-2">
+                    <CardTitle className="text-xl leading-tight">{poll.question}</CardTitle>
+                    {poll.description && (
+                      <CardDescription>{poll.description}</CardDescription>
+                    )}
+                  </div>
+
+                  {poll.image_url && (
+                    <div className="rounded-lg overflow-hidden border bg-muted">
+                      <img
+                        src={poll.image_url}
+                        alt="Poll"
+                        className="w-full max-h-48 object-cover"
+                      />
                     </div>
+                  )}
+
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
+                    <Badge variant="secondary" className="gap-1">
+                      <Users className="h-3 w-3" />
+                      {poll.total_votes} votes
+                    </Badge>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {new Date(poll.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  {/* Voting Interface */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold">Cast Your Vote</h4>
+                      {votedPolls[poll.id] && (
+                        <Badge variant="default" className="gap-1">
+                          <Check className="h-3 w-3" />
+                          Voted
+                        </Badge>
+                      )}
+                    </div>
+
+                    <style>
+                      {`
+                        /* Custom radio button styling for black fill */
+                        [data-poll-id="${poll.id}"] button[data-state="checked"] {
+                          background-color: hsl(var(--foreground));
+                          border-color: hsl(var(--foreground));
+                        }
+                        
+                        [data-poll-id="${poll.id}"] button[data-state="checked"] span {
+                          background-color: hsl(var(--background));
+                        }
+                      `}
+                    </style>
+
+                    <RadioGroup
+                      value={selectedOptions[poll.id] || ''}
+                      onValueChange={(value) => handleOptionSelect(poll.id, value)}
+                      disabled={votedPolls[poll.id]}
+                      className="space-y-3"
+                      data-poll-id={poll.id}
+                    >
+                      {poll.options.map((option) => (
+                        <div
+                          key={option.id}
+                          className={`flex items-center space-x-3 p-3 rounded-lg border-2 transition-all ${
+                            selectedOptions[poll.id] === option.id
+                              ? 'border-foreground bg-muted/50'
+                              : 'border-border hover:border-muted-foreground/50'
+                          } ${votedPolls[poll.id] ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                          onClick={() => !votedPolls[poll.id] && handleOptionSelect(poll.id, option.id)}
+                        >
+                          <RadioGroupItem
+                            value={option.id}
+                            id={`${poll.id}-${option.id}`}
+                            disabled={votedPolls[poll.id]}
+                            className="shrink-0"
+                          />
+                          <Label
+                            htmlFor={`${poll.id}-${option.id}`}
+                            className="flex-1 cursor-pointer text-sm font-medium text-foreground"
+                          >
+                            {option.text}
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+
                     <Button
                       onClick={() => handleVote(poll.id)}
-                      disabled={!selectedOptions[poll.id] || voting[poll.id] || votedPolls[poll.id]}  
-                      className="w-full"
+                      disabled={!selectedOptions[poll.id] || voting[poll.id] || votedPolls[poll.id]}
+                      className="w-full gap-2"
                     >
-                    
-                      {votedPolls[poll.id] ? 'Already Voted' : voting[poll.id] ? 'Submitting...' : 'Submit Vote'}
+                      {voting[poll.id] ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : votedPolls[poll.id] ? (
+                        <>
+                          <Check className="h-4 w-4" />
+                          Already Voted
+                        </>
+                      ) : (
+                        'Submit Vote'
+                      )}
                     </Button>
                   </div>
 
                   {/* Results Section */}
                   {poll.total_votes > 0 && (
                     <>
-                      <div className="border-t pt-4">
-                        <h4 className="font-semibold text-lg mb-4">Live Results:</h4>
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <BarChart3 className="h-4 w-4 text-primary" />
+                          Live Results
+                        </h4>
 
                         {/* Pie Chart */}
-                        <div className="h-64 mb-4">
+                        <div className="h-64">
                           <ChartContainer config={chartConfig}>
                             <PieChart>
                               <Pie
@@ -332,11 +415,10 @@ const Polling = () => {
                                 labelLine={false}
                                 label={({ text, percent }) => `${text} ${(percent * 100).toFixed(0)}%`}
                                 outerRadius={80}
-                                fill="#8884d8"
                                 dataKey="votes"
                               >
                                 {poll.options.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                 ))}
                               </Pie>
                               <ChartTooltip content={<ChartTooltipContent />} />
@@ -345,67 +427,84 @@ const Polling = () => {
                         </div>
 
                         {/* Bar Chart */}
-                        <div className="h-48 mb-4">
+                        <div className="h-48">
                           <ChartContainer config={chartConfig}>
                             <BarChart data={poll.options}>
-                              <CartesianGrid strokeDasharray="3 3" />
+                              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                               <XAxis
                                 dataKey="text"
                                 angle={-45}
                                 textAnchor="end"
                                 height={80}
                                 fontSize={12}
+                                className="text-muted-foreground"
                               />
-                              <YAxis />
+                              <YAxis className="text-muted-foreground" />
                               <ChartTooltip content={<ChartTooltipContent />} />
-                              <Bar dataKey="votes" fill="#8884d8" />
+                              <Bar dataKey="votes" radius={[8, 8, 0, 0]}>
+                                {poll.options.map((entry, index) => (
+                                  <Cell key={`bar-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                              </Bar>
                             </BarChart>
                           </ChartContainer>
                         </div>
 
                         {/* Detailed Results */}
-                        <div className="space-y-2">
-                          <h5 className="font-semibold">Vote Breakdown:</h5>
-                          {poll.options.map((option, index) => {
-                            const percentage = poll.total_votes > 0 ? (option.votes / poll.total_votes) * 100 : 0;
-                            return (
-                              <div key={option.id} className="flex items-center justify-between">
-                                <div className="flex items-center space-x-2">
-                                  <div
-                                    className="w-3 h-3 rounded-full"
-                                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                                  />
-                                  <span className="text-sm">{option.text}</span>
+                        <div className="space-y-3">
+                          <h5 className="font-semibold text-sm">Vote Breakdown</h5>
+                          <div className="space-y-2">
+                            {poll.options.map((option, index) => {
+                              const percentage = poll.total_votes > 0 ? (option.votes / poll.total_votes) * 100 : 0;
+                              return (
+                                <div key={option.id} className="space-y-1">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                                      />
+                                      <span className="font-medium text-foreground">{option.text}</span>
+                                    </div>
+                                    <span className="text-muted-foreground">
+                                      {option.votes} ({percentage.toFixed(1)}%)
+                                    </span>
+                                  </div>
+                                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full transition-all duration-500 rounded-full"
+                                      style={{
+                                        width: `${percentage}%`,
+                                        backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
+                                      }}
+                                    />
+                                  </div>
                                 </div>
-                                <div className="text-sm font-medium">
-                                  {option.votes} votes ({percentage.toFixed(1)}%)
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </>
                   )}
-                </div>
-              </CardContent>
-               <div className="fixed bottom-6 right-18 ">
-  <Button
-    variant="outline"
-    size="icon"
-    className="h-20 w-20 rounded-full shadow-xl hover:scale-105 transition-transform flex flex-col"
-    onClick={handleChatBotClick}
-  >
-    
-    <Bot className="h-20 w-20 text-primary" />
-   <span>ChatBot</span>
-  </Button>
-</div>
-            </Card>
-            
-          ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Floating ChatBot Button */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <Button
+            size="lg"
+            className="h-16 w-16 rounded-full shadow-2xl hover:scale-110 transition-transform"
+            onClick={handleChatBotClick}
+          >
+            <Bot className="h-7 w-7" strokeWidth={2.5} />
+            <span className="sr-only">Open ChatBot</span>
+          </Button>
         </div>
-      )}
+      </div>
     </div>
   );
 };
