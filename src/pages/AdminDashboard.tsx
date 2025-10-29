@@ -1,20 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MessageSquare, Bot, BarChart3, FileText, Download, X, Upload, Trash2, Edit3, Plus } from "lucide-react";
-
 import mammoth from "mammoth";
-
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+
 import { supabase } from "../../supabaseClient";
 
 type Poll = {
@@ -51,7 +48,6 @@ const AdminDashboard: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [error, setError] = useState("");
-
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [fileType, setFileType] = useState<"image" | "pdf" | "doc" | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -97,7 +93,6 @@ const AdminDashboard: React.FC = () => {
     navigate("/app/chat-bot");
   };
 
-  // Try to extract a date-like string from text to use as description
   const extractDateFromText = (text: string): string => {
     const patterns: RegExp[] = [
       /\b\d{4}-\d{2}-\d{2}\b/,
@@ -113,7 +108,6 @@ const AdminDashboard: React.FC = () => {
     return "";
   };
 
-  // PDF content extract function
   const readPDFContent = async (file: File) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -128,14 +122,12 @@ const AdminDashboard: React.FC = () => {
       const extracted = extractDateFromText(fullText);
       setForm((prev) => ({ ...prev, description: extracted || fullText }));
     } catch (err: any) {
-      console.error("Failed to parse PDF:", err);
       setError(err?.message || "Failed to read PDF content. You can still upload the file.");
     } finally {
       setFilePreview(null);
     }
   };
 
-  // DOCX content extract function using mammoth
   const readDocxContent = async (file: File) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -143,14 +135,12 @@ const AdminDashboard: React.FC = () => {
       const extracted = extractDateFromText(result.value || "");
       setForm((prev) => ({ ...prev, description: extracted || result.value }));
     } catch (err: any) {
-      console.error("Failed to parse DOC/DOCX:", err);
       setError(err?.message || "Failed to read document content. You can still upload the file.");
     } finally {
       setFilePreview(null);
     }
   };
 
-  // Handle file input changes
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
     const file = e.target.files[0];
@@ -209,12 +199,10 @@ const AdminDashboard: React.FC = () => {
         const response = await fetch(filePreview);
         const blob = await response.blob();
         const fileName = `images/${Date.now()}-${blob.size}.jpg`;
-        const { data, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("poll-images")
           .upload(fileName, blob);
-
         if (uploadError) throw uploadError;
-
         const { data: publicData } = supabase.storage.from("poll-images").getPublicUrl(fileName);
         imageUrl = publicData.publicUrl;
       }
@@ -229,7 +217,6 @@ const AdminDashboard: React.FC = () => {
             upsert: false,
           });
         if (uploadDocErr) throw uploadDocErr;
-
         const { data: publicData } = supabase.storage.from("poll-files").getPublicUrl(path);
         fileUrl = publicData.publicUrl;
       }
@@ -293,7 +280,6 @@ const AdminDashboard: React.FC = () => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      console.error(err);
       alert("Failed to start download");
     }
   };
@@ -414,7 +400,6 @@ const AdminDashboard: React.FC = () => {
                     placeholder="First choice"
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="option2">Option 2 *</Label>
                   <Input
@@ -426,7 +411,6 @@ const AdminDashboard: React.FC = () => {
                     placeholder="Second choice"
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="option3">Option 3 (Optional)</Label>
                   <Input
@@ -437,7 +421,6 @@ const AdminDashboard: React.FC = () => {
                     placeholder="Third choice"
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="option4">Option 4 (Optional)</Label>
                   <Input
@@ -591,7 +574,6 @@ const AdminDashboard: React.FC = () => {
                               {p.description}
                             </p>
                           )}
-
                           {p.image_url && (
                             <img
                               src={p.image_url}
@@ -612,7 +594,6 @@ const AdminDashboard: React.FC = () => {
                             </Button>
                           )}
                         </div>
-
                         <div className="flex flex-col gap-2 shrink-0">
                           <Button size="sm" variant="outline" onClick={() => startEdit(p)} className="gap-2">
                             <Edit3 className="h-3 w-3" />

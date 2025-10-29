@@ -13,6 +13,8 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 interface PollOption {
   id: string;
@@ -38,6 +40,8 @@ const PollResult = () => {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const handlebotClick = () => navigate("/app/chat-bot");
 
   useEffect(() => {
     fetchPolls();
@@ -154,7 +158,7 @@ const PollResult = () => {
         <p className="text-center text-muted-foreground">
           View real-time results from all active polls
         </p>
-         <Button onClick={handlebotClick}>ChatBot </Button>
+         <Button onClick={handlebotClick}>ChatBot</Button>
       </div>
      
 
@@ -216,7 +220,7 @@ const PollResult = () => {
                           `${text} ${(percent * 100).toFixed(0)}%`
                         }
                       >
-                        {poll.options.map((entry, index) => (
+                        {poll.options.map((_entry, index) => (
                           <Cell
                             key={`cell-${index}`}
                             fill={COLORS[index % COLORS.length]}

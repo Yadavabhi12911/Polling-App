@@ -1,4 +1,3 @@
-
 import { supabase } from "../../supabaseClient"
 
 import { GoogleGenAI, Type } from "@google/genai";
@@ -507,19 +506,24 @@ export async function chatWithPollBot(userMessage: string, userRole: string | nu
         // Find target poll
         let targetId = args?.poll_id as string | undefined;
         if (!targetId && args?.question_match) {
-          const { data: candidates, error } = await supabase
+          // build query and only call .ilike when question_match is a non-empty string
+          let query: any = supabase
             .from("polls")
-            .select("id, question, created_at")
-            .ilike("question", args.question_match);
-          if (error) throw error;
-          if (!candidates || candidates.length === 0) {
-            return { type: "text", message: "No poll found matching that question." };
+            .select("id, question, created_at");
+          if (typeof args.question_match === "string" && args.question_match.trim().length > 0) {
+            // use wildcard search for partial matches
+            query = query.ilike("question", `%${args.question_match}%`);
           }
-          if (candidates.length > 1) {
-            return { type: "text", message: "Multiple polls match. Please specify the poll ID." };
-          }
-          targetId = candidates[0].id;
-        }
+          const { data: candidates, error } = await query;
+           if (error) throw error;
+           if (!candidates || candidates.length === 0) {
+             return { type: "text", message: "No poll found matching that question." };
+           }
+           if (candidates.length > 1) {
+             return { type: "text", message: "Multiple polls match. Please specify the poll ID." };
+           }
+           targetId = candidates[0].id;
+         }
 
         if (!targetId) {
           return { type: "text", message: "Please provide a poll ID or exact question to update." };
@@ -553,19 +557,22 @@ export async function chatWithPollBot(userMessage: string, userRole: string | nu
       try {
         let targetId = args?.poll_id as string | undefined;
         if (!targetId && args?.question_match) {
-          const { data: candidates, error } = await supabase
+          let query: any = supabase
             .from("polls")
-            .select("id, question, created_at")
-            .ilike("question", args.question_match);
-          if (error) throw error;
-          if (!candidates || candidates.length === 0) {
-            return { type: "text", message: "No poll found matching that question." };
+            .select("id, question, created_at");
+          if (typeof args.question_match === "string" && args.question_match.trim().length > 0) {
+            query = query.ilike("question", `%${args.question_match}%`);
           }
-          if (candidates.length > 1) {
-            return { type: "text", message: "Multiple polls match. Please specify the poll ID." };
-          }
-          targetId = candidates[0].id;
-        }
+          const { data: candidates, error } = await query;
+           if (error) throw error;
+           if (!candidates || candidates.length === 0) {
+             return { type: "text", message: "No poll found matching that question." };
+           }
+           if (candidates.length > 1) {
+             return { type: "text", message: "Multiple polls match. Please specify the poll ID." };
+           }
+           targetId = candidates[0].id;
+         }
 
         if (!targetId) {
           return { type: "text", message: "Please provide a poll ID or exact question to delete." };

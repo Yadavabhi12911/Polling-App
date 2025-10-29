@@ -55,7 +55,6 @@ const Polling = () => {
       navigate("/app/user-polls");
       return;
     }
-    
     const setup = async () => {
       await fetchUserAndVotes();
     };
@@ -66,11 +65,10 @@ const Polling = () => {
     const fetchPollsData = async () => {
       await fetchPolls();
     };
-
     fetchPollsData();
   }, []);
 
-  // Fetch current logged-in user ID and vote
+  // Fetch current logged-in user ID and votes
   const fetchUserAndVotes = async () => {
     const {
       data: { user },
@@ -103,7 +101,7 @@ const Polling = () => {
     setVotedPolls(votedMap);
   };
 
-  // Fetch polls and determine if user already voted
+  // Fetch polls and count votes
   const fetchPolls = async () => {
     try {
       setLoading(true);
@@ -126,7 +124,6 @@ const Polling = () => {
 
       if (pollsError) throw pollsError;
 
-      // Transform polls and count votes, check user votes
       const transformedPolls: Poll[] = await Promise.all(
         (pollsData || []).map(async (poll) => {
           const { data: responses } = await supabase
@@ -134,7 +131,6 @@ const Polling = () => {
             .select('selected_option, user_id')
             .eq('poll_id', poll.id);
 
-          // Count votes
           type OptionKey = '1' | '2' | '3' | '4';
           const voteCounts: Record<OptionKey, number> = { '1': 0, '2': 0, '3': 0, '4': 0 };
           responses?.forEach((response) => {
@@ -167,7 +163,6 @@ const Polling = () => {
 
       setPolls(transformedPolls);
     } catch (err) {
-      console.error('Error fetching polls:', err);
       setError('Failed to fetch polls. Please try again.');
     } finally {
       setLoading(false);
@@ -186,7 +181,6 @@ const Polling = () => {
       alert("You have already voted in this poll");
       return;
     }
-
     const selectedOption = selectedOptions[pollId];
     if (!selectedOption || !userId) return;
 
@@ -210,7 +204,7 @@ const Polling = () => {
         delete copy[pollId];
         return copy;
       });
-    } catch (error) {
+    } catch {
       setError('Failed to submit vote. Please try again.');
     } finally {
       setVoting(prev => ({ ...prev, [pollId]: false }));
@@ -327,12 +321,10 @@ const Polling = () => {
 
                     <style>
                       {`
-                        /* Custom radio button styling for black fill */
                         [data-poll-id="${poll.id}"] button[data-state="checked"] {
                           background-color: hsl(var(--foreground));
                           border-color: hsl(var(--foreground));
                         }
-                        
                         [data-poll-id="${poll.id}"] button[data-state="checked"] span {
                           background-color: hsl(var(--background));
                         }
@@ -397,7 +389,6 @@ const Polling = () => {
                   {poll.total_votes > 0 && (
                     <>
                       <Separator />
-
                       <div className="space-y-4">
                         <h4 className="font-semibold flex items-center gap-2">
                           <BarChart3 className="h-4 w-4 text-primary" />
@@ -417,7 +408,7 @@ const Polling = () => {
                                 outerRadius={80}
                                 dataKey="votes"
                               >
-                                {poll.options.map((entry, index) => (
+                                {poll.options.map((_entry, index) => (
                                   <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                 ))}
                               </Pie>
@@ -442,7 +433,7 @@ const Polling = () => {
                               <YAxis className="text-muted-foreground" />
                               <ChartTooltip content={<ChartTooltipContent />} />
                               <Bar dataKey="votes" radius={[8, 8, 0, 0]}>
-                                {poll.options.map((entry, index) => (
+                                {poll.options.map((_entry, index) => (
                                   <Cell key={`bar-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                 ))}
                               </Bar>

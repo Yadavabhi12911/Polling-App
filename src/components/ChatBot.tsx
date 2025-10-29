@@ -1,17 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import { chatWithPollBot, resetChat } from "@/utils/geminiModel";
 import { useUserRole } from "./useUserRole";
-import { Bot, Send, RotateCcw, Upload, FileText, Image as ImageIcon, Download, User as UserIcon, X, Paperclip } from "lucide-react";
-
+import { Bot, Send, RotateCcw, FileText, Image as ImageIcon, Download, User as UserIcon, X, Paperclip } from "lucide-react";
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -34,7 +31,6 @@ interface Message {
 
 export default function ChatBot() {
   const userRole = useUserRole();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -65,7 +61,7 @@ export default function ChatBot() {
     }
   }, [input]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -77,12 +73,11 @@ export default function ChatBot() {
         userRole === "admin"
           ? "What poll tasks are on your agenda today?"
           : "Let's see which polls are open for voting!";
-
       setMessages([{ role: "model", text: initialMessage }]);
     }
   }, [userRole]);
 
-  // Extract date from text function
+  // Date extraction function
   const extractDateFromText = (text: string): string => {
     const patterns: RegExp[] = [
       /\b\d{4}-\d{2}-\d{2}\b/,
@@ -98,7 +93,7 @@ export default function ChatBot() {
     return "";
   };
 
-  // PDF content extract function
+  // PDF content extract
   const readPDFContent = async (file: File) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -113,14 +108,13 @@ export default function ChatBot() {
       const extracted = extractDateFromText(fullText);
       setFileDescription(extracted || fullText);
     } catch (err: any) {
-      console.error("Failed to parse PDF:", err);
       setError(err?.message || "Failed to read PDF content. You can still upload the file.");
     } finally {
       setFilePreview(null);
     }
   };
 
-  // DOCX content extract function using mammoth
+  // DOCX content extract function
   const readDocxContent = async (file: File) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -128,14 +122,13 @@ export default function ChatBot() {
       const extracted = extractDateFromText(result.value || "");
       setFileDescription(extracted || result.value);
     } catch (err: any) {
-      console.error("Failed to parse DOC/DOCX:", err);
       setError(err?.message || "Failed to read document content. You can still upload the file.");
     } finally {
       setFilePreview(null);
     }
   };
 
-  // Handle file input changes
+  // File input handler
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
     const file = e.target.files[0];
@@ -201,15 +194,14 @@ export default function ChatBot() {
     try {
       let fileInfo = undefined;
 
-      // Handle file upload if file is selected
+      // Handle file upload
       if (fileType === "image" && filePreview) {
         const response = await fetch(filePreview);
         const blob = await response.blob();
         const fileName = `images/${Date.now()}-${blob.size}.jpg`;
-        const { data, error: uploadError } = await supabase.storage.from("poll-images").upload(fileName, blob);
+        const { error: uploadError } = await supabase.storage.from("poll-images").upload(fileName, blob);
 
         if (uploadError) throw uploadError;
-
         const { data: publicData } = supabase.storage.from("poll-images").getPublicUrl(fileName);
 
         fileInfo = {
@@ -240,7 +232,8 @@ export default function ChatBot() {
       const res = await chatWithPollBot(userText, userRole, fileInfo);
 
       if (res.type === "text") {
-        setMessages((prev) => [...prev, { role: "model", text: res.message }]);
+        // ensure text is always a string to satisfy Message type
+        setMessages((prev) => [...prev, { role: "model", text: res.message ?? "" }]);
       } else if (res.type === "poll") {
         setMessages((prev) => [
           ...prev,
@@ -257,32 +250,31 @@ export default function ChatBot() {
             : res.data.length > 5
             ? `📊 **${res.data.length} Active Polls Available**\n\n` +
               `**Quick Summary:**\n` +
-              res.data.slice(0, 3).map((poll: any, index: number) => {
-                const topOption = poll.options.reduce((max: any, opt: any) => 
-                  opt.votes > max.votes ? opt : max, poll.options[0]);
-                const winnerText = poll.total_votes > 0 
-                  ? `🏆 ${topOption.text} (${topOption.votes} votes)`
-                  : "No votes yet";
-                return `• **${poll.question}** - ${winnerText}`;
-              }).join("\n") +
-              `\n\n💡 **View all polls:** Ask "show all polls" for complete results\n` +
-              `💡 **View specific poll:** Ask "show results for [poll question]" or "show poll [ID]"`
-            : `📊 **${res.data.length} Active Poll${res.data.length === 1 ? '' : 's'} Available**\n\n${res.data
-                .map(
-                  (poll: any, index: number) => {
-                    const topOption = poll.options.reduce((max: any, opt: any) => 
-                      opt.votes > max.votes ? opt : max, poll.options[0]);
-                    const winnerText = poll.total_votes > 0 
-                      ? `🏆 **Leading:** ${topOption.text} (${topOption.votes} votes, ${((topOption.votes / poll.total_votes) * 100).toFixed(1)}%)`
-                      : "No votes yet";
-                    
-                    return `**${index + 1}. ${poll.question}**\n` +
-                      `📅 ${new Date(poll.created_at).toLocaleDateString()} • 🗳️ ${poll.total_votes} votes\n` +
-                      `${winnerText}\n` +
-                      `💡 **Vote:** "vote on poll ${poll.id} for option [1-4]" or "vote on \"${poll.question}\" for option [1-4]"\n`;
-                  }
-                )
-                .join("\n")}`;
+              res.data.slice(0, 3).map((poll: any) => {
+                 const topOption = poll.options.reduce((max: any, opt: any) => 
+                   opt.votes > max.votes ? opt : max, poll.options[0]);
+                 const winnerText = poll.total_votes > 0 
+                   ? `🏆 ${topOption.text} (${topOption.votes} votes)`
+                   : "No votes yet";
+                 return `• **${poll.question}** - ${winnerText}`;
+               }).join("\n") +
+               `\n\n💡 **View all polls:** Ask "show all polls" for complete results\n` +
+               `💡 **View specific poll:** Ask "show results for [poll question]" or "show poll [ID]"`
+             : `📊 **${res.data.length} Active Poll${res.data.length === 1 ? '' : 's'} Available**\n\n${res.data
+                 .map(
+                   (poll: any, index: number) => {
+                     const topOption = poll.options.reduce((max: any, opt: any) => 
+                       opt.votes > max.votes ? opt : max, poll.options[0]);
+                     const winnerText = poll.total_votes > 0 
+                       ? `🏆 **Leading:** ${topOption.text} (${topOption.votes} votes, ${((topOption.votes / poll.total_votes) * 100).toFixed(1)}%)`
+                       : "No votes yet";
+                     return `**${index + 1}. ${poll.question}**\n` +
+                       `📅 ${new Date(poll.created_at).toLocaleDateString()} • 🗳️ ${poll.total_votes} votes\n` +
+                       `${winnerText}\n` +
+                       `💡 **Vote:** "vote on poll ${poll.id} for option [1-4]" or "vote on \"${poll.question}\" for option [1-4]"\n`;
+                   }
+                 )
+                 .join("\n")}`;
 
         setMessages((prev) => [
           ...prev,
@@ -293,13 +285,11 @@ export default function ChatBot() {
           },
         ]);
       }
-
-      // Clear file state after successful poll creation
+      // Clear file state
       if (res.type === "poll") {
         clearFile();
       }
     } catch (err: any) {
-      console.error("Error chatting with AI:", err);
       setError(err.message || "Something went wrong. Please try again.");
       setMessages((prev) => [...prev, { role: "model", text: "Something went wrong. Please try again." }]);
     } finally {
@@ -376,18 +366,10 @@ export default function ChatBot() {
                   )}
 
                   <div className={`flex flex-col gap-2 ${m.role === "user" ? "max-w-[85%] items-end" : "max-w-[90%] items-start"}`}>
-                    <div
-                      className={`rounded-2xl px-5 py-3.5 ${
-                        m.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
-                      }`}
-                    >
-                      <div className="text-[15px] leading-7 whitespace-pre-wrap">
-                        {m.text}
-                      </div>
+                    <div className={`rounded-2xl px-5 py-3.5 ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                      <div className="text-[15px] leading-7 whitespace-pre-wrap">{m.text}</div>
 
-                      {/* Display file info if available */}
+                      {/* File info display */}
                       {m.fileInfo && (
                         <div className="mt-4 rounded-xl border bg-background/50 p-4">
                           <div className="flex items-center gap-2 text-sm font-medium mb-3">
@@ -429,16 +411,14 @@ export default function ChatBot() {
                         </div>
                       )}
 
-                      {/* Display poll results if available */}
+                      {/* Poll results display */}
                       {m.pollResults && m.pollResults.length > 0 && (
                         <div className="mt-4 space-y-4">
                           {m.pollResults.map((poll: any) => (
                             <div key={poll.id} className="rounded-xl border bg-background p-4">
                               <h4 className="font-semibold text-base mb-3">{poll.question}</h4>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                                <Badge variant="secondary" className="text-xs">
-                                  {poll.total_votes} votes
-                                </Badge>
+                                <Badge variant="secondary" className="text-xs">{poll.total_votes} votes</Badge>
                                 <span>•</span>
                                 <span>{new Date(poll.created_at).toLocaleDateString()}</span>
                               </div>
@@ -467,7 +447,6 @@ export default function ChatBot() {
                       )}
                     </div>
                   </div>
-
                   {m.role === "user" && (
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary mt-1">
                       <UserIcon className="h-5 w-5 text-primary-foreground" />
@@ -492,17 +471,15 @@ export default function ChatBot() {
                   </div>
                 </div>
               )}
-
               <div ref={messagesEndRef} />
             </div>
           </div>
         </ScrollArea>
       </div>
 
-      {/* ChatGPT-style Fixed Input Area */}
+      {/* Fixed Input Area */}
       <div className="flex-shrink-0 border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container max-w-5xl mx-auto px-4 py-4">
-          {/* File Preview Above Input */}
           {(filePreview || selectedFile) && (
             <div className="mb-3 p-3 bg-muted/50 rounded-xl border flex items-start gap-3">
               {fileType === "image" && filePreview && (
@@ -518,35 +495,19 @@ export default function ChatBot() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {fileType === "image" ? "Image attached" : selectedFile?.name}
-                </p>
+                <p className="text-sm font-medium truncate">{fileType === "image" ? "Image attached" : selectedFile?.name}</p>
                 {fileDescription && (
                   <p className="text-xs text-muted-foreground truncate mt-1">{fileDescription.slice(0, 80)}...</p>
                 )}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 shrink-0"
-                onClick={clearFile}
-              >
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={clearFile}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
           )}
-
-          {/* Input Container - ChatGPT Style */}
           <div className="relative flex items-end gap-2 rounded-3xl border bg-background shadow-sm px-4 py-2.5 focus-within:shadow-md transition-shadow">
-            {/* Attach Button */}
             <label htmlFor="fileUpload" className="cursor-pointer shrink-0">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 rounded-full hover:bg-muted"
-                asChild
-              >
+              <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted" asChild>
                 <div>
                   <Paperclip className="h-5 w-5 text-muted-foreground" />
                 </div>
@@ -559,8 +520,6 @@ export default function ChatBot() {
                 onChange={handleFileChange}
               />
             </label>
-
-            {/* Textarea */}
             <Textarea
               ref={textareaRef}
               value={input}
@@ -571,14 +530,7 @@ export default function ChatBot() {
               className="min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent p-2.5 text-[15px] leading-6 focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin"
               rows={1}
             />
-
-            {/* Send Button */}
-            <Button
-              onClick={handleSend}
-              disabled={loading || !input.trim()}
-              size="icon"
-              className="h-10 w-10 rounded-full shrink-0 disabled:opacity-50"
-            >
+            <Button onClick={handleSend} disabled={loading || !input.trim()} size="icon" className="h-10 w-10 rounded-full shrink-0 disabled:opacity-50">
               {loading ? (
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : (
@@ -586,8 +538,6 @@ export default function ChatBot() {
               )}
             </Button>
           </div>
-
-          {/* Footer Text */}
           <p className="text-xs text-center text-muted-foreground mt-3">
             AI can make mistakes. Please verify important information.
           </p>
