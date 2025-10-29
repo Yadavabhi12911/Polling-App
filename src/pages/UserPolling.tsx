@@ -32,10 +32,10 @@ interface Poll {
 
 // Vibrant color palette for charts
 const CHART_COLORS = [
-  '#3b82f6', // Blue
-  '#10b981', // Green
-  '#f59e0b', // Amber
-  '#ef4444', // Red
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
 ];
 
 const UserPolling = () => {
@@ -62,23 +62,22 @@ const UserPolling = () => {
     fetchPollsData();
   }, []);
 
-  // Fetch current logged-in user ID and votes
   const fetchUserAndVotes = async () => {
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
-    
+
     if (userError) {
       setError("Failed to fetch user info");
       return;
     }
-    
+
     if (!user) {
       setError("User not logged in");
       return;
     }
-    
+
     setUserId(user.id);
 
     const { data: votes, error: votesError } = await supabase
@@ -98,7 +97,6 @@ const UserPolling = () => {
     setVotedPolls(votedMap);
   };
 
-  // Fetch polls and determine if user already voted
   const fetchPolls = async () => {
     try {
       setLoading(true);
@@ -121,7 +119,6 @@ const UserPolling = () => {
 
       if (pollsError) throw pollsError;
 
-      // Transform polls and count votes
       const transformedPolls: Poll[] = await Promise.all(
         (pollsData || []).map(async (poll) => {
           const { data: responses } = await supabase
@@ -129,10 +126,9 @@ const UserPolling = () => {
             .select('selected_option, user_id')
             .eq('poll_id', poll.id);
 
-          // Count votes
           type OptionKey = '1' | '2' | '3' | '4';
           const voteCounts: Record<OptionKey, number> = { '1': 0, '2': 0, '3': 0, '4': 0 };
-          
+
           responses?.forEach((response) => {
             if (response.selected_option in voteCounts) {
               voteCounts[response.selected_option as OptionKey]++;
@@ -163,7 +159,6 @@ const UserPolling = () => {
 
       setPolls(transformedPolls);
     } catch (err) {
-      console.error('Error fetching polls:', err);
       setError('Failed to fetch polls. Please try again.');
     } finally {
       setLoading(false);
@@ -261,7 +256,6 @@ const UserPolling = () => {
             </CardDescription>
           </div>
         </div>
-
         {polls.length === 0 ? (
           <Card className="max-w-2xl mx-auto text-center py-12 border-muted">
             <CardContent className="space-y-4">
@@ -288,7 +282,6 @@ const UserPolling = () => {
                       <CardDescription>{poll.description}</CardDescription>
                     )}
                   </div>
-
                   {poll.image_url && (
                     <div className="rounded-lg overflow-hidden border bg-muted">
                       <img
@@ -298,7 +291,6 @@ const UserPolling = () => {
                       />
                     </div>
                   )}
-
                   <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
                     <Badge variant="secondary" className="gap-1">
                       <Users className="h-3 w-3" />
@@ -311,7 +303,6 @@ const UserPolling = () => {
                     </div>
                   </div>
                 </CardHeader>
-
                 <CardContent className="space-y-6">
                   {/* Voting Interface */}
                   <div className="space-y-4">
@@ -324,20 +315,17 @@ const UserPolling = () => {
                         </Badge>
                       )}
                     </div>
-
                     <style>
                       {`
                         [data-poll-id="${poll.id}"] button[data-state="checked"] {
                           background-color: hsl(var(--foreground));
                           border-color: hsl(var(--foreground));
                         }
-                        
                         [data-poll-id="${poll.id}"] button[data-state="checked"] span {
                           background-color: hsl(var(--background));
                         }
                       `}
                     </style>
-
                     <RadioGroup
                       value={selectedOptions[poll.id] || ''}
                       onValueChange={(value) => handleOptionSelect(poll.id, value)}
@@ -370,7 +358,6 @@ const UserPolling = () => {
                         </div>
                       ))}
                     </RadioGroup>
-
                     <div className="flex gap-2">
                       <Button
                         onClick={() => handleVote(poll.id)}
@@ -394,7 +381,6 @@ const UserPolling = () => {
                           </>
                         )}
                       </Button>
-
                       <Button
                         onClick={handleChatBotClick}
                         variant="outline"
@@ -405,18 +391,15 @@ const UserPolling = () => {
                       </Button>
                     </div>
                   </div>
-
                   {/* Results Section */}
                   {poll.total_votes > 0 && (
                     <>
                       <Separator />
-
                       <div className="space-y-4">
                         <h4 className="font-semibold flex items-center gap-2">
                           <TrendingUp className="h-4 w-4 text-primary" />
                           Live Results
                         </h4>
-
                         {/* Pie Chart */}
                         <div className="h-64">
                           <ChartContainer config={chartConfig}>
@@ -430,7 +413,7 @@ const UserPolling = () => {
                                 outerRadius={80}
                                 dataKey="votes"
                               >
-                                {poll.options.map((entry, index) => (
+                                {poll.options.map((_entry, index) => (
                                   <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                 ))}
                               </Pie>
@@ -438,7 +421,6 @@ const UserPolling = () => {
                             </PieChart>
                           </ChartContainer>
                         </div>
-
                         {/* Bar Chart */}
                         <div className="h-48">
                           <ChartContainer config={chartConfig}>
@@ -455,14 +437,13 @@ const UserPolling = () => {
                               <YAxis className="text-muted-foreground" />
                               <ChartTooltip content={<ChartTooltipContent />} />
                               <Bar dataKey="votes" radius={[8, 8, 0, 0]}>
-                                {poll.options.map((entry, index) => (
+                                {poll.options.map((_entry, index) => (
                                   <Cell key={`bar-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                 ))}
                               </Bar>
                             </BarChart>
                           </ChartContainer>
                         </div>
-
                         {/* Detailed Results */}
                         <div className="space-y-3">
                           <h5 className="font-semibold text-sm">Vote Breakdown</h5>
@@ -497,7 +478,6 @@ const UserPolling = () => {
             ))}
           </div>
         )}
-
         {/* Floating AI Assistant Button */}
         <div className="fixed bottom-6 right-6 z-50">
           <Button
