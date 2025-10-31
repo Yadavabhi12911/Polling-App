@@ -24,6 +24,8 @@ const Navigation = () => {
     navigate("/signin");
   };
 
+  
+
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,7 +48,7 @@ const Navigation = () => {
 
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center gap-2">
-            {userRole === "admin" ? (
+            {userRole.role === "admin" ? (
               <>
                 <Button
                   variant="ghost"
@@ -118,7 +120,7 @@ const Navigation = () => {
                 <DropdownMenuLabel>Navigation</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 
-                {userRole === "admin" ? (
+                { userRole?.role === "admin" ? (
                   <>
                     <DropdownMenuItem onClick={() => navigate("/app/polling")}>
                       <BarChart3 className="mr-2 h-4 w-4" />
