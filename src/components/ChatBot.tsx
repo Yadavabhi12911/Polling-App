@@ -38,14 +38,16 @@ export default function ChatBot() {
     {
       role: "model",
       text:
-        userRole.role !== "admin"
-          ? `Hii ${userRole.name} 👋`
-          : `Hii ${userRole.name} 👋`,
+        userRole.role === "admin"
+          ? `Hi ${userRole.name || "there"} 👋\n\nI can help you create, update, or close polls — or show results. What would you like to do?`
+          : `Hi ${userRole.name || "there"} 👋\n\nI can show polls, share results, and help you vote. Want to check current polls?`,
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [loadingSteps, setLoadingSteps] = useState<string[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   // File handling state
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -61,6 +63,16 @@ export default function ChatBot() {
     }
   }, [input]);
 
+  // Keep input focused
+  useEffect(() => {
+    if (!loading) {
+      textareaRef.current?.focus();
+    }
+  }, [loading]);
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -73,11 +85,24 @@ export default function ChatBot() {
     if (userRole.role) {
       const initialMessage =
         userRole.role === "admin"
-          ? `Hii ${userRole.name} 👋`
-          :`Hii ${userRole.name} 👋`;
+          ? `Hi ${userRole.name || "there"} 👋\n\nReady to manage polls? I can create, update, close, or show results.`
+          : `Hi ${userRole.name || "there"} 👋\n\nWant to view polls, see results, or cast a vote?`;
       setMessages([{ role: "model", text: initialMessage }]);
     }
   }, [userRole.role]);
+
+  // Progress step cycler while loading
+  useEffect(() => {
+    if (!loading || loadingSteps.length === 0) return;
+    setCurrentStepIndex(0);
+    const interval = setInterval(() => {
+      setCurrentStepIndex((idx) => {
+        const next = idx + 1;
+        return next < loadingSteps.length ? next : idx;
+      });
+    }, 1200);
+    return () => clearInterval(interval);
+  }, [loading, loadingSteps]);
 
   // Date extraction function
   const extractDateFromText = (text: string): string => {
@@ -155,7 +180,7 @@ export default function ChatBot() {
       setFileDescription("");
       await readDocxContent(file);
     } else {
-      alert("Unsupported file type.");
+      alert("That file type isn’t supported yet.");
       setFileType(null);
       setFilePreview(null);
       setSelectedFile(null);
@@ -173,25 +198,27 @@ export default function ChatBot() {
     const userText = input.trim();
     if (!userText) return;
 
-    const adminOnlyActions = ["create", "delete", "update"];
-    const lowerText = userText.toLowerCase();
-
-    if (
-      userRole.role !== "admin" &&
-      adminOnlyActions.some((action) => lowerText.includes(action))
-    ) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "model", text: "❌ Unauthorized access. Only admins can perform this action." },
-      ]);
-      setInput("");
-      return;
-    }
-
     setMessages((prev) => [...prev, { role: "user", text: userText }]);
     setInput("");
     setLoading(true);
     setError("");
+
+    // Determine lightweight intent to show contextual progress text
+    const textLower = userText.toLowerCase();
+    const isDeleteAll = /delete\s+all/.test(textLower) || (/delete/.test(textLower) && /poll/.test(textLower) && /all|every|everything/.test(textLower));
+    const isGetAll = (/get\s+all/.test(textLower) || /show\s+all/.test(textLower)) && /poll/.test(textLower);
+    const isDeleteSpecific = /delete/.test(textLower) && /poll/.test(textLower) && !isDeleteAll;
+    const isResults = (/get|show/.test(textLower)) && (/result|results|polls/.test(textLower));
+
+    if (isDeleteAll) {
+      setLoadingSteps(["Analyzing request…", "Fetching poll IDs…", "Deleting active polls…"]);
+    } else if (isDeleteSpecific) {
+      setLoadingSteps(["Finding the target poll…", "Closing the poll…"]);
+    } else if (isGetAll || isResults) {
+      setLoadingSteps(["Fetching active polls…"]);
+    } else {
+      setLoadingSteps(["Thinking…"]);
+    }
 
     try {
       let fileInfo = undefined;
@@ -243,17 +270,17 @@ export default function ChatBot() {
           ...prev,
           {
             role: "model",
-            text: `✅ Poll Created Successfully!\n\nQuestion: ${res.data.question}\n\nOptions:\n• ${res.data.option1}\n• ${res.data.option2}\n• ${res.data.option3}\n• ${res.data.option4}\n\nYour poll is now live and ready for voting!`,
+            text: `✅ Poll created!\n\nQuestion: ${res.data.question}\n\nOptions:\n• ${res.data.option1}\n• ${res.data.option2}\n• ${res.data.option3}\n• ${res.data.option4}\n\nIt’s live now. Want me to share the link or view results?`,
             fileInfo: fileInfo,
           },
         ]);
       } else if (res.type === "pollResults") {
         const resultsText =
           res.data.length === 0
-            ? "No active polls found at the moment."
+            ? "I’m not seeing any active polls right now. Want to create one?"
             : res.data.length > 5
-            ? `📊 **${res.data.length} Active Polls Available**\n\n` +
-              `**Quick Summary:**\n` +
+            ? `📊 **${res.data.length} active polls**\n\n` +
+              `**Quick summary:**\n` +
               res.data.slice(0, 3).map((poll: any) => {
                  const topOption = poll.options.reduce((max: any, opt: any) => 
                    opt.votes > max.votes ? opt : max, poll.options[0]);
@@ -262,20 +289,19 @@ export default function ChatBot() {
                    : "No votes yet";
                  return `• **${poll.question}** - ${winnerText}`;
                }).join("\n") +
-               `\n\n💡 **View all polls:** Ask "show all polls" for complete results\n` +
-               `💡 **View specific poll:** Ask "show results for [poll question]" or "show poll [ID]"`
-             : `📊 **${res.data.length} Active Poll${res.data.length === 1 ? '' : 's'} Available**\n\n${res.data
+               `\n\n💡 Want the full list or a specific poll? Try: "show all polls" or "show poll [ID]"`
+             : `📊 **${res.data.length} active poll${res.data.length === 1 ? '' : 's'}**\n\n${res.data
                  .map(
                    (poll: any, index: number) => {
                      const topOption = poll.options.reduce((max: any, opt: any) => 
                        opt.votes > max.votes ? opt : max, poll.options[0]);
                      const winnerText = poll.total_votes > 0 
-                       ? `🏆 **Leading:** ${topOption.text} (${topOption.votes} votes, ${((topOption.votes / poll.total_votes) * 100).toFixed(1)}%)`
+                      ? `🏆 **Leading:** ${topOption.text} (${topOption.votes} votes, ${((topOption.votes / poll.total_votes) * 100).toFixed(1)}%)`
                        : "No votes yet";
                      return `**${index + 1}. ${poll.question}**\n` +
-                       `📅 ${new Date(poll.created_at).toLocaleDateString()} • 🗳️ ${poll.total_votes} votes\n` +
+                      `📅 ${new Date(poll.created_at).toLocaleDateString()} • 🗳️ ${poll.total_votes} votes\n` +
                        `${winnerText}\n` +
-                       `💡 **Vote:** "vote on poll ${poll.id} for option [1-4]" or "vote on \"${poll.question}\" for option [1-4]"\n`;
+                      `💡 **Try:** "vote on poll ${poll.id} for option [1-4]" or "show poll ${poll.id}"\n`;
                    }
                  )
                  .join("\n")}`;
@@ -294,22 +320,26 @@ export default function ChatBot() {
         clearFile();
       }
     } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
-      setMessages((prev) => [...prev, { role: "model", text: "Something went wrong. Please try again." }]);
+      setError(err.message || "Something didn’t go through. Want to try again?");
+      setMessages((prev) => [...prev, { role: "model", text: "Something didn’t go through. Want to try again?" }]);
     } finally {
       setLoading(false);
+      setLoadingSteps([]);
+      setCurrentStepIndex(0);
+      // refocus input after response
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
   };
 
   const handleReset = () => {
-    resetChat();
+    resetChat(userRole.role ?? "user", userRole.name ?? "User");
     setMessages([
       {
         role: "model",
         text:
           userRole.role === "admin"
-            ? `Hii ${userRole.name} 👋`
-            : `Hii ${userRole.name} 👋`,
+            ? `Hi ${userRole.name || "there"} 👋\n\nNew chat started. Want to create a poll or review results?`
+            : `Hi ${userRole.name || "there"} 👋\n\nNew chat started. Want to view polls or vote?`,
       },
     ]);
     clearFile();
@@ -472,6 +502,11 @@ export default function ChatBot() {
                         <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
                       </div>
                     </div>
+                    {loadingSteps.length > 0 && (
+                      <div className="mt-2 text-[13px] text-muted-foreground">
+                        {loadingSteps[currentStepIndex]}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -511,7 +546,7 @@ export default function ChatBot() {
           )}
           <div className="relative flex items-end gap-2 rounded-3xl border bg-background shadow-sm px-4 py-2.5 focus-within:shadow-md transition-shadow">
             <label htmlFor="fileUpload" className="cursor-pointer shrink-0">
-              <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted" asChild>
+              <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-muted" asChild onMouseDown={(e) => e.preventDefault()}>
                 <div>
                   <Paperclip className="h-5 w-5 text-muted-foreground" />
                 </div>
@@ -529,12 +564,12 @@ export default function ChatBot() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Message AI Poll Assistant..."
+              placeholder="Ask me to show polls, create one, or help you vote..."
               disabled={loading}
               className="min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent p-2.5 text-[15px] leading-6 focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin"
               rows={1}
             />
-            <Button onClick={handleSend} disabled={loading || !input.trim()} size="icon" className="h-10 w-10 rounded-full shrink-0 disabled:opacity-50">
+            <Button onClick={handleSend} onMouseDown={(e) => e.preventDefault()} disabled={loading || !input.trim()} size="icon" className="h-10 w-10 rounded-full shrink-0 disabled:opacity-50">
               {loading ? (
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : (
