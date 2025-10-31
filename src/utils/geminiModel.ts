@@ -77,6 +77,27 @@ const deletePollFunctionDeclaration = {
     required: [],
   },
 };
+const deleteMultiplePollsFunctionDeclaration = {
+  name: "deleteMultiplePolls",
+  description:
+    "Soft-delete multiple polls by setting is_active=false. Requires confirmation before execution.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      poll_ids: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: "Array of poll IDs to delete",
+      },
+      confirmed: {
+        type: Type.BOOLEAN,
+        description:
+          "Must be true to confirm deletion (bot should ask user for explicit confirmation first)",
+      },
+    },
+    required: ["poll_ids", "confirmed"],
+  },
+};
 
 const getPollResultFunctionDeclaration = {
   name: "getPollResult",
@@ -132,94 +153,88 @@ const votePollFunctionDeclaration = {
   },
 }
 
-// chat history
-let chatHistory: any[] = [
-  {
-    role: "model",
-    parts: [
-      {
-        text: `You are a helpful poll assistant that can help users with polls in different ways based on their role:
 
-For ADMIN users:
-- Create polls: Guide step-by-step to create a poll (question, 4 options)
-- View poll results: call "getPollResult" when they ask for results/statistics
-- View specific poll results: call "getSpecificPollResult" with poll_id OR poll_question to get results for a specific poll
-- Update polls: call "updatePoll" to modify existing polls
-- Delete/close polls: call "deletePoll" to close polls
-- Vote on polls: call "votePoll" with either poll_id OR poll_question and selected_option (1, 2, 3, or 4)
+function SystemPrompt(userRole: string, userName:string){
 
-For REGULAR users:
-- View active polls: call "getPollResult" to see all active polls
-- View specific poll results: call "getSpecificPollResult" with poll_id OR poll_question to get results for a specific poll
-- Vote on polls: call "votePoll" with either poll_id OR poll_question and selected_option (1, 2, 3, or 4)
-- Ask questions about polls and get help with voting
-- CANNOT create, update, or delete polls (admin only) - will receive "not authorized" message
+return `You are a friendly and helpful poll assistant. CURRENT USER NAME:${userName} CURRENT USER ROLE: ${userRole} Depending on the user's role, you provide tailored support with managing and participating in polls.
 
-Always be helpful and guide users through the process step by step. If a regular user tries to create/update/delete polls, politely explain they don't have permission and suggest they contact an admin.
+### For ADMIN :
+- Help them create polls by guiding step-by-step through writing the question and four options.
+- Provide poll results or statistics when requested.
+- Retrieve specific poll results by poll ID or question.
+- Assist with updating poll details or closing polls.
+- Help admins cast votes on polls.
+- Always confirm permissions and handle tasks clearly and patiently.
 
-IMPORTANT: If a regular user (non-admin) asks to create, update, or delete a poll, immediately respond with an authorization message instead of asking follow-up questions. Do not proceed with the poll creation/update/delete process for non-admin users.
+### Form Users:
+- Show active polls they can view.
+- Provide results for polls they ask about.
+- Assist with voting in polls.
+- Answer questions about polls and voting processes.
+- Politely inform them they do not have permission if they try to create, update, or delete polls, and suggest contacting an admin.
 
-RESPONSE FORMATTING GUIDELINES:
-- Keep responses concise and well-structured
-- Use bullet points and emojis for better readability
-- Highlight key information (leading options, vote counts)
-- Provide clear, actionable instructions
-- Avoid repetitive text and unnecessary details`,
-      },
-    ],
-  },
-];
+### Important:
+- If a user requests any admin-level actions (creating, updating, deleting polls), immediately inform them they aren't authorized and do not ask follow-up questions or proceed.
 
-// Function to reset chat history
-export function resetChat() {
-  chatHistory = [
+### How to respond:
+- Keep replies natural, conversational, and concise.
+- Use bullet points, emojis, and friendly language to make instructions clear and engaging.
+- Highlight important details such as leading options and vote counts.
+- Avoid unnecessary repetition or jargon.
+- Guide users step-by-step whenever appropriate and be encouraging.
+
+***
+
+This prompt improves naturalness by:
+- Using conversational phrases ("help them", "politely inform")
+- Setting explicit tone instructions
+- Clear, simple role behavior separation
+- Encouraging concise and engaging formatting with emoji use)`
+
+}
+
+
+function createHistory(userRole: string, userName:string) {
+  return [
     {
       role: "model",
-      parts: [
-        {
-          text: `You are a helpful poll assistant that can help users with polls in different ways based on their role:
-
-For ADMIN users:
-- Create polls: Guide step-by-step to create a poll (question, 4 options)
-- View poll results: call "getPollResult" when they ask for results/statistics
-- View specific poll results: call "getSpecificPollResult" with poll_id OR poll_question to get results for a specific poll
-- Update polls: call "updatePoll" to modify existing polls
-- Delete/close polls: call "deletePoll" to close polls
-- Vote on polls: call "votePoll" with either poll_id OR poll_question and selected_option (1, 2, 3, or 4)
-
-For REGULAR users:
-- View active polls: call "getPollResult" to see all active polls
-- View specific poll results: call "getSpecificPollResult" with poll_id OR poll_question to get results for a specific poll
-- Vote on polls: call "votePoll" with either poll_id OR poll_question and selected_option (1, 2, 3, or 4)
-- Ask questions about polls and get help with voting
-- CANNOT create, update, or delete polls (admin only) - will receive "not authorized" message
-
-Always be helpful and guide users through the process step by step. If a regular user tries to create/update/delete polls, politely explain they don't have permission and suggest they contact an admin.
-
-IMPORTANT: If a regular user (non-admin) asks to create, update, or delete a poll, immediately respond with an authorization message instead of asking follow-up questions. Do not proceed with the poll creation/update/delete process for non-admin users.
-
-RESPONSE FORMATTING GUIDELINES:
-- Keep responses concise and well-structured
-- Use bullet points and emojis for better readability
-- Highlight key information (leading options, vote counts)
-- Provide clear, actionable instructions
-- Avoid repetitive text and unnecessary details`,
-        },
-      ],
-    },
+      parts: [{ text: SystemPrompt(userRole, userName) }],
+    }
   ];
+}
+
+// chat history
+// let chatHistory: any[] = [
+//   {
+//     role: "model",
+//     parts: [
+//       {
+//         text:SystemPrompt,
+//       },
+//     ],
+//   },
+// ];
+
+let chatHistory: any[] = createHistory("user", "Bot");
+
+
+// Function to reset chat history
+export function resetChat(userRole:string, userName:string) {
+chatHistory = createHistory(userRole, userName);
 }
 
 
 // decide which tool used and provide a res
-export async function chatWithPollBot(userMessage: string, userRole: string | null, fileInfo?: {
+export async function chatWithPollBot(userMessage: string, userRole: string | "Loading...", userName: string | "Loading...", fileInfo?: {
   file_url?: string,
   file_type?: string,
   description?: string,
 }) {
 
+
+  
   // user msg to chat history 
-  chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+  chatHistory.push({ role: "user", parts: [{ text: `[USER ROLE: ${userRole}, USER NAME: ${userName}]  ${userMessage} `}] });
 
 
   // Ask Gemini for the next message
@@ -236,6 +251,7 @@ export async function chatWithPollBot(userMessage: string, userRole: string | nu
             updatePollFunctionDeclaration,
             deletePollFunctionDeclaration,
             votePollFunctionDeclaration,
+            deleteMultiplePollsFunctionDeclaration
           ]
         }
       ]

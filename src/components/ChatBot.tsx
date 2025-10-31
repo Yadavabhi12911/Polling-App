@@ -38,9 +38,9 @@ export default function ChatBot() {
     {
       role: "model",
       text:
-        userRole !== "admin"
-          ? "Let's see which polls are open for voting!"
-          : "What poll tasks are on your agenda today?",
+        userRole.role !== "admin"
+          ? `Hii ${userRole.name} 👋`
+          : `Hii ${userRole.name} 👋`,
     },
   ]);
   const [input, setInput] = useState("");
@@ -64,18 +64,20 @@ export default function ChatBot() {
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+   console.log("usr --> ", userRole.role);
+   
   }, [messages]);
 
   // Set initial message based on user role
   useEffect(() => {
-    if (userRole) {
+    if (userRole.role) {
       const initialMessage =
-        userRole === "admin"
-          ? "What poll tasks are on your agenda today?"
-          : "Let's see which polls are open for voting!";
+        userRole.role === "admin"
+          ? `Hii ${userRole.name} 👋`
+          :`Hii ${userRole.name} 👋`;
       setMessages([{ role: "model", text: initialMessage }]);
     }
-  }, [userRole]);
+  }, [userRole.role]);
 
   // Date extraction function
   const extractDateFromText = (text: string): string => {
@@ -175,7 +177,7 @@ export default function ChatBot() {
     const lowerText = userText.toLowerCase();
 
     if (
-      userRole !== "admin" &&
+      userRole.role !== "admin" &&
       adminOnlyActions.some((action) => lowerText.includes(action))
     ) {
       setMessages((prev) => [
@@ -229,7 +231,9 @@ export default function ChatBot() {
         };
       }
 
-      const res = await chatWithPollBot(userText, userRole, fileInfo);
+      const res = await chatWithPollBot(userText, userRole.role, userRole.name, fileInfo);
+    
+      
 
       if (res.type === "text") {
         // ensure text is always a string to satisfy Message type
@@ -303,9 +307,9 @@ export default function ChatBot() {
       {
         role: "model",
         text:
-          userRole === "admin"
-            ? "What poll tasks are on your agenda today?"
-            : "Let's see which polls are open for voting!",
+          userRole.role === "admin"
+            ? `Hii ${userRole.name} 👋`
+            : `Hii ${userRole.name} 👋`,
       },
     ]);
     clearFile();
@@ -538,9 +542,7 @@ export default function ChatBot() {
               )}
             </Button>
           </div>
-          <p className="text-xs text-center text-muted-foreground mt-3">
-            AI can make mistakes. Please verify important information.
-          </p>
+        
         </div>
       </div>
     </div>
