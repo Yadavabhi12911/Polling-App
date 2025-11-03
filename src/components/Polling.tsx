@@ -51,7 +51,7 @@ const Polling = () => {
 
   useEffect(() => {
     // Redirect users to appropriate page based on role
-    if (userRole === "user") {
+    if (userRole.role === "user") {
       navigate("/app/user-polls");
       return;
     }
@@ -59,7 +59,7 @@ const Polling = () => {
       await fetchUserAndVotes();
     };
     setup();
-  }, [userRole, navigate]);
+  }, [userRole.role, navigate]);
 
   useEffect(() => {
     const fetchPollsData = async () => {
