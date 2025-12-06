@@ -258,7 +258,7 @@ export default function ChatBot() {
         };
       }
 
-      const res = await chatWithPollBot(userText, userRole.role, userRole.name, fileInfo);
+      const res = await chatWithPollBot(userText, userRole.role || "user", userRole.name || "Guest", fileInfo);
     
       
 
