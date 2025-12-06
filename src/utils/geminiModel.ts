@@ -1,3 +1,4 @@
+
 import { supabase } from "../../supabaseClient"
 
 import { GoogleGenAI, Type } from "@google/genai";
@@ -6,6 +7,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY ?? ""
 
 const ai = new GoogleGenAI({ apiKey });
+
+
+
 
 
 // fn declarations
@@ -77,27 +81,7 @@ const deletePollFunctionDeclaration = {
     required: [],
   },
 };
-const deleteMultiplePollsFunctionDeclaration = {
-  name: "deleteMultiplePolls",
-  description:
-    "Soft-delete multiple polls by setting is_active=false. Requires confirmation before execution.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      poll_ids: {
-        type: Type.ARRAY,
-        items: { type: Type.STRING },
-        description: "Array of poll IDs to delete",
-      },
-      confirmed: {
-        type: Type.BOOLEAN,
-        description:
-          "Must be true to confirm deletion (bot should ask user for explicit confirmation first)",
-      },
-    },
-    required: ["poll_ids", "confirmed"],
-  },
-};
+
 
 const getPollResultFunctionDeclaration = {
   name: "getPollResult",
@@ -109,6 +93,24 @@ const getPollResultFunctionDeclaration = {
     required: []
   },
 }
+
+const deleteMultiplePollsFunctionDeclaration = {
+  name: "deleteAllPolls",
+  description:
+    `Soft-delete polls by setting is_active=false. 
+  Requires explicit confirmation before execution`,
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      confirmed: {
+        type: Type.BOOLEAN,
+        description:
+          "Must be true to confirm deletion (bot should ask user for explicit confirmation first)",
+      },
+    },
+    required: ["confirmed"],
+  },
+};
 
 const getSpecificPollResultFunctionDeclaration = {
   name: "getSpecificPollResult",
@@ -154,47 +156,35 @@ const votePollFunctionDeclaration = {
 }
 
 
-function SystemPrompt(userRole: string, userName:string){
+function SystemPrompt(userRole: string, userName: string) {
+  return `You are ChatPoll — a warm, concise, and helpful assistant for managing and participating in polls.
 
-return `You are a friendly and helpful poll assistant. CURRENT USER NAME:${userName} CURRENT USER ROLE: ${userRole} Depending on the user's role, you provide tailored support with managing and participating in polls.
+CONTEXT
+- Current user: ${userName || "Guest"}
+- Role: ${userRole || "user"}
 
-### For ADMIN :
-- Help them create polls by guiding step-by-step through writing the question and four options.
-- Provide poll results or statistics when requested.
-- Retrieve specific poll results by poll ID or question.
-- Assist with updating poll details or closing polls.
-- Help admins cast votes on polls.
-- Always confirm permissions and handle tasks clearly and patiently.
+TONE AND STYLE
+- Friendly, human, and clear. Keep replies short but not abrupt.
+- Avoid robotic phrasing. Prefer: "I can help with that.", "Here’s what I found.", "Want to try again?"
+- Use light emojis to guide actions (✅, 📊, 💡) but don’t overdo it.
 
-### Form Users:
-- Show active polls they can view.
-- Provide results for polls they ask about.
-- Assist with voting in polls.
-- Answer questions about polls and voting processes.
-- Politely inform them they do not have permission if they try to create, update, or delete polls, and suggest contacting an admin.
+ROLE BEHAVIOR
+- For admins: help create, update, close, and review polls. Confirm destructive actions.
+- For users: help view polls, see results, and vote. If they ask for admin-only actions, explain kindly and suggest next steps.
 
-### Important:
-- If a user requests any admin-level actions (creating, updating, deleting polls), immediately inform them they aren't authorized and do not ask follow-up questions or proceed.
+SAFETY AND PERMISSIONS
+- If a non-admin requests admin-only actions (create/update/delete), say they’re not authorized and suggest viewing polls or contacting an admin. Do not proceed.
+- Always ask for explicit confirmation for bulk or destructive actions (e.g., closing or deleting multiple polls).
 
-### How to respond:
-- Keep replies natural, conversational, and concise.
-- Use bullet points, emojis, and friendly language to make instructions clear and engaging.
-- Highlight important details such as leading options and vote counts.
-- Avoid unnecessary repetition or jargon.
-- Guide users step-by-step whenever appropriate and be encouraging.
-
-***
-
-This prompt improves naturalness by:
-- Using conversational phrases ("help them", "politely inform")
-- Setting explicit tone instructions
-- Clear, simple role behavior separation
-- Encouraging concise and engaging formatting with emoji use)`
-
+RESPONSE GUIDELINES
+- Be conversational and specific to the request.
+- When showing lists, add a quick actionable next step.
+- When something is missing or unclear, ask a simple follow-up question.
+- On errors or missing data, respond gently: "Hmm, I couldn’t find that. Want to try again?"`;
 }
 
 
-function createHistory(userRole: string, userName:string) {
+function createHistory(userRole: string, userName: string) {
   return [
     {
       role: "model",
@@ -219,9 +209,38 @@ let chatHistory: any[] = createHistory("user", "Bot");
 
 
 // Function to reset chat history
-export function resetChat(userRole:string, userName:string) {
-chatHistory = createHistory(userRole, userName);
+export function resetChat(userRole: string, userName: string) {
+  chatHistory = createHistory(userRole, userName);
 }
+
+
+
+export async function getPollIds() {
+  try {
+    // Fetch all active polls with their id 
+    const { data: pollData, error: pollsError } = await supabase
+      .from("polls")
+      .select("id, is_active")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
+    if (pollsError) throw pollsError;
+
+    // Return only the polls with id and is_active
+    const pollsWithIds = pollData.map((poll: any) => ({
+      id: poll.id,
+      is_active: poll.is_active,
+    }));
+
+    return { type: "text", message: "fetched all poll ids",  data: pollsWithIds };
+  } catch (error) {
+    console.error("Error fetching poll results:", error);
+    return { type: "text", message: "Failed to fetch poll results. Please try again." };
+  }
+}
+
+
+
 
 
 // decide which tool used and provide a res
@@ -232,9 +251,9 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
 }) {
 
 
-  
+
   // user msg to chat history 
-  chatHistory.push({ role: "user", parts: [{ text: `[USER ROLE: ${userRole}, USER NAME: ${userName}]  ${userMessage} `}] });
+  chatHistory.push({ role: "user", parts: [{ text: `[role:${userRole}] [name:${userName}] ${userMessage}` }] });
 
 
   // Ask Gemini for the next message
@@ -265,7 +284,7 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
   }
   else {
 
-    const modelText = response.candidates?.[0]?.content?.parts?.[0]?.text || "I didn't get that.";
+    const modelText = response.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I didn’t catch that. Could you rephrase?";
 
 
     // add model chat history 
@@ -279,9 +298,11 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
     const functionName = functionCall.name;
     const args = functionCall.args;
 
+
+
     if (functionName === "createPoll") {
       if (userRole !== "admin") {
-        return { type: "text", message: "❌ You are not authorized to create polls." };
+        return { type: "text", message: "You don’t have permission to create polls. Want to view current polls instead?" };
       }
       if (!args) {
         console.log('No poll data found');
@@ -312,16 +333,16 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
           .single();
 
         if (pollError) {
-          console.error("Error creating poll:", pollError);
-          return { type: "text", message: "Failed to create poll. Please try again." };
+        console.error("Error creating poll:", pollError);
+        return { type: "text", message: "Hmm, I couldn’t create that poll right now. Want to try again?" };
         }
 
         console.log("Poll created successfully:", pollData);
         return { type: "poll", data: pollData };
 
       } catch (error) {
-        console.error(" user not authorised! :", error);
-        return { type: "text", message: "Failed to create poll. Please try again." };
+        console.error("create poll error:", error);
+        return { type: "text", message: "Something went wrong creating the poll. Let’s try once more." };
       }
     } else if (functionName === "getPollResult") {
       try {
@@ -400,7 +421,7 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
 
       } catch (error) {
         console.error("Error fetching poll results:", error);
-        return { type: "text", message: "Failed to fetch poll results. Please try again." };
+        return { type: "text", message: "I couldn’t fetch poll results right now. Want to try again?" };
       }
     } else if (functionName === "getSpecificPollResult") {
       try {
@@ -408,7 +429,7 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
         const pollQuestion = args?.poll_question as string;
 
         if (!pollId && !pollQuestion) {
-          return { type: "text", message: "Please provide either poll ID or poll question to get specific poll results." };
+          return { type: "text", message: "Please share a poll ID or the poll question so I can find it." };
         }
 
         let targetPollId = pollId;
@@ -424,12 +445,12 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
           if (pollSearchError) throw pollSearchError;
 
           if (!polls || polls.length === 0) {
-            return { type: "text", message: `No active poll found matching "${pollQuestion}". Please check the question text or use the poll ID.` };
+            return { type: "text", message: `Hmm, I couldn’t find an active poll matching "${pollQuestion}". Want to try the exact ID?` };
           }
 
           if (polls.length > 1) {
             const pollList = polls.map(p => `• "${p.question}" (ID: ${p.id})`).join('\n');
-            return { type: "text", message: `Multiple polls match "${pollQuestion}". Please be more specific or use the poll ID:\n\n${pollList}` };
+            return { type: "text", message: `I found a few matches for "${pollQuestion}". Could you pick one by ID?\n\n${pollList}` };
           }
 
           targetPollId = polls[0].id;
@@ -456,11 +477,11 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
           .single();
 
         if (pollsError || !pollData) {
-          return { type: "text", message: "Poll not found." };
+          return { type: "text", message: "I couldn’t find that poll. Want to try a different ID or question?" };
         }
 
         if (!pollData.is_active) {
-          return { type: "text", message: "This poll is no longer active." };
+          return { type: "text", message: "This poll is closed." };
         }
 
         // Fetch responses for this poll
@@ -512,11 +533,11 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
 
       } catch (error) {
         console.error("Error fetching specific poll results:", error);
-        return { type: "text", message: "Failed to fetch poll results. Please try again." };
+        return { type: "text", message: "I couldn’t fetch those results. Want to try again?" };
       }
     } else if (functionName === "updatePoll") {
       if (userRole !== "admin") {
-        return { type: "text", message: "❌ You are not authorized to update polls." };
+        return { type: "text", message: "You don’t have permission to update polls. Would you like to view poll results instead?" };
       }
       try {
         // Find target poll
@@ -531,18 +552,18 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
             query = query.ilike("question", `%${args.question_match}%`);
           }
           const { data: candidates, error } = await query;
-           if (error) throw error;
-           if (!candidates || candidates.length === 0) {
-             return { type: "text", message: "No poll found matching that question." };
-           }
-           if (candidates.length > 1) {
-             return { type: "text", message: "Multiple polls match. Please specify the poll ID." };
-           }
-           targetId = candidates[0].id;
-         }
+          if (error) throw error;
+          if (!candidates || candidates.length === 0) {
+            return { type: "text", message: "I couldn’t find a poll matching that question." };
+          }
+          if (candidates.length > 1) {
+            return { type: "text", message: "I found multiple matches. Could you specify the poll ID?" };
+          }
+          targetId = candidates[0].id;
+        }
 
         if (!targetId) {
-          return { type: "text", message: "Please provide a poll ID or exact question to update." };
+          return { type: "text", message: "Please share a poll ID or exact question to update." };
         }
 
         const updateData: Record<string, any> = {};
@@ -551,7 +572,7 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
         });
 
         if (Object.keys(updateData).length === 0) {
-          return { type: "text", message: "No fields to update were provided." };
+          return { type: "text", message: "I didn’t receive any fields to update." };
         }
 
         const { data, error } = await supabase
@@ -561,14 +582,14 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
           .select("*")
           .single();
         if (error) throw error;
-        return { type: "text", message: `Poll updated successfully (id: ${data.id}).` };
+        return { type: "text", message: `✅ Updated poll (ID: ${data.id}).` };
       } catch (error) {
-        console.error(" user not authorised! :", error);
-        return { type: "text", message: "Failed to update poll. Please try again." };
+        console.error("update poll error:", error);
+        return { type: "text", message: "Couldn’t update that poll. Want to try again?" };
       }
     } else if (functionName === "deletePoll") {
       if (userRole !== "admin") {
-        return { type: "text", message: "❌ You are not authorized to delete polls. "};
+        return { type: "text", message: "You don’t have permission to delete polls. Want to view polls instead?" };
       }
       try {
         let targetId = args?.poll_id as string | undefined;
@@ -580,18 +601,18 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
             query = query.ilike("question", `%${args.question_match}%`);
           }
           const { data: candidates, error } = await query;
-           if (error) throw error;
-           if (!candidates || candidates.length === 0) {
-             return { type: "text", message: "No poll found matching that question." };
-           }
-           if (candidates.length > 1) {
-             return { type: "text", message: "Multiple polls match. Please specify the poll ID." };
-           }
-           targetId = candidates[0].id;
-         }
+          if (error) throw error;
+          if (!candidates || candidates.length === 0) {
+            return { type: "text", message: "I couldn’t find a poll matching that question." };
+          }
+          if (candidates.length > 1) {
+            return { type: "text", message: "I found multiple matches. Could you specify the poll ID?" };
+          }
+          targetId = candidates[0].id;
+        }
 
         if (!targetId) {
-          return { type: "text", message: "Please provide a poll ID or exact question to delete." };
+          return { type: "text", message: "Please share a poll ID or exact question to delete." };
         }
 
         const { data, error } = await supabase
@@ -601,17 +622,17 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
           .select("id")
           .single();
         if (error) throw error;
-        return { type: "text", message: `Poll closed successfully (id: ${data.id}).` };
+        return { type: "text", message: `✅ Poll closed (ID: ${data.id}).` };
       } catch (error) {
-        console.error(" user not authorised! :", error);
-        return { type: "text", message: "Failed to delete poll. Please try again." };
+        console.error("delete poll error:", error);
+        return { type: "text", message: "Couldn’t close that poll. Want to try again?" };
       }
     } else if (functionName === "votePoll") {
       try {
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) {
-          return { type: "text", message: "You must be logged in to vote." };
+          return { type: "text", message: "You’ll need to sign in to vote." };
         }
 
         const pollId = args?.poll_id as string;
@@ -619,16 +640,16 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
         const selectedOption = args?.selected_option as string;
 
         if (!selectedOption) {
-          return { type: "text", message: "Please provide the selected option (1, 2, 3, or 4)." };
+          return { type: "text", message: "Which option would you like to vote for? (1–4)" };
         }
 
         if (!pollId && !pollQuestion) {
-          return { type: "text", message: "Please provide either poll ID or poll question." };
+          return { type: "text", message: "Please share a poll ID or the poll question." };
         }
 
         // Validate option (should be 1, 2, 3, or 4)
         if (!["1", "2", "3", "4"].includes(selectedOption)) {
-          return { type: "text", message: "Selected option must be 1, 2, 3, or 4." };
+          return { type: "text", message: "Please pick 1, 2, 3, or 4." };
         }
 
         let targetPollId = pollId;
@@ -644,12 +665,12 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
           if (pollSearchError) throw pollSearchError;
 
           if (!polls || polls.length === 0) {
-            return { type: "text", message: `No active poll found matching "${pollQuestion}". Please check the question text or use the poll ID.` };
+            return { type: "text", message: `I couldn’t find an active poll matching "${pollQuestion}". Try the exact ID?` };
           }
 
           if (polls.length > 1) {
             const pollList = polls.map(p => `• "${p.question}" (ID: ${p.id})`).join('\n');
-            return { type: "text", message: `Multiple polls match "${pollQuestion}". Please be more specific or use the poll ID:\n\n${pollList}` };
+            return { type: "text", message: `I found a few matches. Could you choose one by ID?\n\n${pollList}` };
           }
 
           targetPollId = polls[0].id;
@@ -663,11 +684,11 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
           .single();
 
         if (pollError || !poll) {
-          return { type: "text", message: "Poll not found." };
+          return { type: "text", message: "I couldn’t find that poll." };
         }
 
         if (!poll.is_active) {
-          return { type: "text", message: "This poll is no longer active." };
+          return { type: "text", message: "This poll is closed." };
         }
 
         // Check if user already voted on this poll
@@ -683,7 +704,7 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
         }
 
         if (existingVote) {
-          return { type: "text", message: "You have already voted on this poll." };
+          return { type: "text", message: "You’ve already voted on this poll." };
         }
 
         // Insert the vote
@@ -698,20 +719,43 @@ export async function chatWithPollBot(userMessage: string, userRole: string | "L
 
         if (insertError) throw insertError;
 
-        return { type: "text", message: `✅ Vote submitted successfully! You voted for option ${selectedOption} on poll: "${poll.question}"` };
+        return { type: "text", message: `✅ Vote submitted! You chose option ${selectedOption} on: "${poll.question}"` };
 
       } catch (error) {
         console.error("Error voting on poll:", error);
-        return { type: "text", message: "Failed to submit vote. Please try again." };
+        return { type: "text", message: "I couldn’t submit your vote. Want to try again?" };
       }
+    } else if (functionName === "deleteAllPolls") {
+
+       try {
+    // Delete all polls where is_active is true
+    const { error } = await supabase
+      .from("polls")
+      .delete()
+      .eq("is_active", true);
+
+    if (error) {
+      console.error("Error deleting all polls:", error);
+      return { success: false, message: error.message };
     }
 
-    return { type: "text", message: "Unknown function call." };
+    return { type:"text", message: "✅ All active polls deleted." };
+  } catch (error: any) {
+    console.error("Unexpected error deleting polls:", error);
+    return { success: false, message: error.message || "Unexpected error" };
+  }
+      
+
+
+    }
+
+    return { type: "text", message: "I wasn’t sure how to handle that request. Could you try a different way?" };
   } else {
 
     return { type: "text", message: response.candidates?.[0]?.content?.parts?.[0]?.text };
   }
 }
+
 
 
 

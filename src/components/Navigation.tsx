@@ -16,6 +16,7 @@ import { useState } from "react";
 const Navigation = () => {
   const navigate = useNavigate();
   const userRole = useUserRole();
+  const isLoadingRole = userRole.loading;
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -48,7 +49,12 @@ const Navigation = () => {
 
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center gap-2">
-            {userRole.role === "admin" ? (
+            {isLoadingRole ? (
+              <>
+                <div className="h-9 w-28 rounded-md bg-muted animate-pulse" />
+                <div className="h-9 w-28 rounded-md bg-muted animate-pulse" />
+              </>
+            ) : userRole.role === "admin" ? (
               <>
                 <Button
                   variant="ghost"
@@ -120,7 +126,16 @@ const Navigation = () => {
                 <DropdownMenuLabel>Navigation</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 
-                { userRole?.role === "admin" ? (
+                { isLoadingRole ? (
+                  <>
+                    <DropdownMenuItem disabled>
+                      <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled>
+                      <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                    </DropdownMenuItem>
+                  </>
+                ) : userRole?.role === "admin" ? (
                   <>
                     <DropdownMenuItem onClick={() => navigate("/app/polling")}>
                       <BarChart3 className="mr-2 h-4 w-4" />
